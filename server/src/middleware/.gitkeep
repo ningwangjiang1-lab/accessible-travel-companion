@@ -1,0 +1,3 @@
+# Middleware
+
+Fastify 中间件/插件。如 JWT 认证、请求日志等。

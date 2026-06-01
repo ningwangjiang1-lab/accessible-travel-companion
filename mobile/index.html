@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>无障碍出行陪伴平台</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #root { height: 100%; width: 100%; }
+    body { font-family: sans-serif; background: #e8f1fb; }
+    #root { display: flex; flex-direction: column; }
+    #fallback {
+      padding: 60px 20px;
+      text-align: center;
+      color: #333;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div id="fallback">♿ 无障碍出行陪伴平台<br><small style="color:#666;">正在加载...</small></div>
+  </div>
+  <script>
+    // 全局错误捕获
+    window.onerror = function(msg, url, line, col, err) {
+      var root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = '<div style="padding:40px;background:#fef2f2;min-height:100vh"><h2 style="color:#c00">❌ 加载错误</h2><pre style="font-size:11px;color:#666;white-space:pre-wrap">' +
+          (err ? (err.stack || err.message) : (msg + '\\n at ' + url + ':' + line)) +
+          '</pre><p style="margin-top:16px;color:#666">请检查终端日志获取详细信息。</p></div>';
+      }
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      var root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = '<div style="padding:40px;background:#fef2f2;min-height:100vh"><h2 style="color:#c00">❌ Promise 错误</h2><pre style="font-size:11px;color:#666;white-space:pre-wrap">' +
+          (e.reason ? (e.reason.stack || e.reason.message || String(e.reason)) : 'Unknown') +
+          '</pre></div>';
+      }
+    });
+  </script>
+  <script type="module" src="/src/web/main.tsx"></script>
+</body>
+</html>

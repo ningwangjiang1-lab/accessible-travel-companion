@@ -1,0 +1,65 @@
+version: '3.8'
+
+# ============================================================
+# 无障碍出行陪伴平台 — 本地开发基础设施
+#
+# 服务：
+#   - PostgreSQL 16 + PostGIS 3  （地理空间数据库）
+#   - Redis 7                     （缓存 + 实时位置 + Session）
+#
+# 启动：docker-compose up -d
+# 停止：docker-compose down
+# 清理数据：docker-compose down -v
+# ============================================================
+
+services:
+  # ---- PostgreSQL 16 + PostGIS 3 ----
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: accessible-postgres
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: accessible
+      POSTGRES_PASSWORD: accessible_dev
+      POSTGRES_DB: accessible_travel
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # 初始化脚本（创建 PostGIS 扩展等）
+      - ./src/db/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U accessible -d accessible_travel']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - accessible-network
+
+  # ---- Redis 7 ----
+  redis:
+    image: redis:7-alpine
+    container_name: accessible-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - accessible-network
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  accessible-network:
+    driver: bridge
