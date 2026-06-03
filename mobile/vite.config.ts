@@ -53,6 +53,9 @@ export default defineConfig({
     open: true,
   },
 
+  // GitHub Pages 部署路径（自定义域名时改为 '/'）
+  base: process.env.CI ? '/accessible-travel-companion/' : '/',
+
   define: {
     __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production'),
     global: 'globalThis',
