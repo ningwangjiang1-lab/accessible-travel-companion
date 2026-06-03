@@ -1,0 +1,11 @@
+{
+  "buildCommand": "cd mobile && npm install && npx vite build",
+  "outputDirectory": "mobile/dist",
+  "installCommand": "cd mobile && npm install",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

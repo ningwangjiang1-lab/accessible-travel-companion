@@ -11,9 +11,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY_TOKEN = '@accessible_travel_token';
 
-// 开发环境：浏览器 & iOS 模拟器用 localhost，Android 模拟器用 10.0.2.2
-// 当前运行在 Web 上，使用 localhost
-export const API_BASE_URL = 'http://localhost:3000/api';
+// API 地址：通过环境变量配置，开发默认 localhost
+// Vite 中通过 VITE_API_URL 设置，生产环境指向 Render 后端
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
