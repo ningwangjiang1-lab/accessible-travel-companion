@@ -20,7 +20,6 @@ const RegisterCompleteScreen: React.FC<{navigation?: any}> = ({navigation}) => {
     visual: '🦯 视障模式',
     hearing: '🦻 听障模式',
     cognitive: '🧠 认知障碍模式',
-    elderly: '👴 高龄出行模式',
     none: '👤 通用模式',
   };
 

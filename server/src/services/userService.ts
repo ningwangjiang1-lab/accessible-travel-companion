@@ -41,6 +41,9 @@ export interface UpdateProfileInput {
   nav_preference?: string;
   font_preference?: string;
   avatar?: string;
+  gender?: string;
+  birth_year?: number;
+  city?: string;
 }
 
 export async function updateProfile(
@@ -48,7 +51,8 @@ export async function updateProfile(
   input: UpdateProfileInput,
 ): Promise<UserWithProfile> {
   // 更新 users 表
-  if (input.name !== undefined || input.avatar !== undefined || input.user_type !== undefined) {
+  if (input.name !== undefined || input.avatar !== undefined || input.user_type !== undefined
+      || input.gender !== undefined || input.birth_year !== undefined || input.city !== undefined) {
     const updates: string[] = [];
     const params: any[] = [];
     let paramIndex = 1;
@@ -64,6 +68,18 @@ export async function updateProfile(
     if (input.user_type !== undefined) {
       updates.push(`user_type = $${paramIndex++}`);
       params.push(input.user_type);
+    }
+    if (input.gender !== undefined) {
+      updates.push(`gender = $${paramIndex++}`);
+      params.push(input.gender);
+    }
+    if (input.birth_year !== undefined) {
+      updates.push(`birth_year = $${paramIndex++}`);
+      params.push(input.birth_year);
+    }
+    if (input.city !== undefined) {
+      updates.push(`city = $${paramIndex++}`);
+      params.push(input.city);
     }
 
     if (updates.length > 0) {
@@ -104,4 +120,27 @@ export async function updateProfile(
 
   // 返回更新后的完整信息
   return getUserById(userId);
+}
+
+export interface UserRating {
+  average: number | null;
+  count: number;
+}
+
+/**
+ * 获取用户平均评分（作为被评价方）
+ */
+export async function getUserRating(userId: string): Promise<UserRating> {
+  const result = await query(
+    `SELECT COALESCE(ROUND(AVG(score)::numeric, 1), 0) as average, COUNT(*)::int as count
+     FROM ratings
+     WHERE reviewee_id = $1`,
+    [userId],
+  );
+
+  const row = result.rows[0];
+  return {
+    average: row.count > 0 ? parseFloat(row.average) : null,
+    count: row.count,
+  };
 }

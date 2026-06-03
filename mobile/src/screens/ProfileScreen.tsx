@@ -11,6 +11,7 @@ import {
 import {useTheme} from '../theme';
 import {useAuthStore} from '../store/authStore';
 import * as tripService from '../services/tripService';
+import * as authService from '../services/authService';
 import type {TripResult} from '../services/tripService';
 import Avatar from '../components/Avatar/Avatar';
 import Badge from '../components/Badge/Badge';
@@ -57,6 +58,8 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const {user, profile, logout} = useAuthStore();
 
   const [tripCount, setTripCount] = useState(0);
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const [ratingCount, setRatingCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadTripCount = useCallback(async () => {
@@ -68,15 +71,26 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
     }
   }, []);
 
+  const loadRating = useCallback(async () => {
+    try {
+      const rating = await authService.getMyRating();
+      setUserRating(rating.average);
+      setRatingCount(rating.count);
+    } catch {
+      // 静默
+    }
+  }, []);
+
   React.useEffect(() => {
     loadTripCount();
-  }, [loadTripCount]);
+    loadRating();
+  }, [loadTripCount, loadRating]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadTripCount();
+    await Promise.all([loadTripCount(), loadRating()]);
     setRefreshing(false);
-  }, [loadTripCount]);
+  }, [loadTripCount, loadRating]);
 
   const disabilityInfo = profile ? DISABILITY_MAP[profile.disability_type] : null;
 
@@ -90,6 +104,7 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
     },
     {
       title: '角色升级',
+      // 专业陪护仅对非残障用户开放
       items: [
         {
           icon: '🤝',
@@ -98,13 +113,13 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
             : '申请成为志愿者',
           screen: 'VolunteerCert',
         },
-        {
-          icon: '💼',
+        ...(user?.user_type !== 'disabled' ? [{
+          icon: '💼' as const,
           label: user?.role === 'professional'
             ? '专业陪护（已认证）'
             : '申请专业陪护',
-          screen: 'ProfessionalCert',
-        },
+          screen: 'ProfessionalCert' as const,
+        }] : []),
       ],
     },
     {
@@ -211,17 +226,17 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
           <View style={[styles.statDivider, {backgroundColor: colors.border}]} />
           <View style={styles.statItem}>
             <Text style={{color: colors.secondary, fontSize: fontSize.xl, fontWeight: fontWeight.bold as any}}>
-              4.8
+              {userRating !== null ? userRating : '暂无'}
             </Text>
-            <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 2}}>评分</Text>
+            <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 2}}>评分{ratingCount > 0 ? `(${ratingCount})` : ''}</Text>
           </View>
         </View>
       </Card>
 
       {/* ============================================================ */}
-      {/* 3. 导航偏好快捷信息 */}
+      {/* 3. 导航偏好快捷信息 — 仅残障人士 */}
       {/* ============================================================ */}
-      {profile && (
+      {profile && user?.user_type === 'disabled' && (
         <Card variant="card-flat" style={{marginHorizontal: spacing.lg, marginTop: spacing.sm}}>
           <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center'}}>
             <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginRight: spacing.sm}}>
@@ -235,6 +250,21 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
               text={`字号：${profile.font_preference === 'large' ? '大' : profile.font_preference === 'extra_large' ? '特大' : '标准'}`}
               variant="warning"
               style={{marginLeft: spacing.xs}}
+            />
+          </View>
+        </Card>
+      )}
+
+      {/* 非残障人士：仅显示字体偏好 */}
+      {profile && user?.user_type === 'non_disabled' && (
+        <Card variant="card-flat" style={{marginHorizontal: spacing.lg, marginTop: spacing.sm}}>
+          <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center'}}>
+            <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginRight: spacing.sm}}>
+              设置：
+            </Text>
+            <Badge
+              text={`字号：${profile.font_preference === 'large' ? '大' : profile.font_preference === 'extra_large' ? '特大' : '标准'}`}
+              variant="warning"
             />
           </View>
         </Card>

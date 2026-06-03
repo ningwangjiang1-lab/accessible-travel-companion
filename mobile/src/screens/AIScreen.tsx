@@ -157,14 +157,10 @@ const AIScreen: React.FC<{navigation?: any}> = ({navigation}) => {
             <Text style={[styles.modeLabel, {color: colors.textTertiary, fontSize: fontSize.xs}]}>
               出行模式：
             </Text>
-            {(profile.disability_type === 'physical' || profile.disability_type === 'visual' || profile.disability_type === 'hearing' || profile.disability_type === 'cognitive') ? (
-              <ModeIndicator
-                mode={profile.disability_type as DisabilityMode}
-                style={{marginRight: spacing.sm}}
-              />
-            ) : (
-              <Tag label="👴 长辈模式" selected={true} />
-            )}
+            <ModeIndicator
+              mode={profile.disability_type as DisabilityMode}
+              style={{marginRight: spacing.sm}}
+            />
             {profile.nav_preference && (
               <Tag
                 label={NAV_LABELS[profile.nav_preference] || profile.nav_preference}
@@ -242,18 +238,29 @@ const AIScreen: React.FC<{navigation?: any}> = ({navigation}) => {
 
           {/* 路线列表 */}
           {!isLoading && routes.map(route => (
-            <RouteCard
-              key={route.id}
-              name={route.name}
-              accessibilityScore={route.accessibility_score}
-              distance={route.distance_display}
-              duration={route.duration_display}
-              features={route.features}
-              isRecommended={route.is_recommended}
-              onPress={() => {
-                navigation.navigate('Navigation', {routeId: route.id});
-              }}
-            />
+            <View key={route.id} style={{marginBottom: spacing.md}}>
+              <RouteCard
+                name={route.name}
+                accessibilityScore={route.accessibility_score}
+                distance={route.distance_display}
+                duration={route.duration_display}
+                features={route.features}
+                isRecommended={route.is_recommended}
+              />
+              <TouchableOpacity
+                style={[styles.navButton, {
+                  backgroundColor: route.is_recommended ? colors.success : colors.primary,
+                  borderRadius: borderRadius.md,
+                }]}
+                onPress={() => {
+                  navigation.navigate('Navigation', {routeId: route.id});
+                }}
+                activeOpacity={0.8}>
+                <Text style={[styles.navButtonText, {color: colors.textInverse, fontSize: fontSize.sm, fontWeight: fontWeight.bold as any}]}>
+                  🗺️ 开始导航 · {route.duration_display} · {route.distance_display}
+                </Text>
+              </TouchableOpacity>
+            </View>
           ))}
 
           {/* 空结果（已搜索但无结果） */}
@@ -391,6 +398,19 @@ const styles = StyleSheet.create({
   retryBtn: {
     paddingVertical: 8,
     paddingHorizontal: 20,
+  },
+
+  // ---- 导航按钮 ----
+  navButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginTop: -8,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
+  navButtonText: {
+    textAlign: 'center',
   },
 
   // ---- 空状态 ----

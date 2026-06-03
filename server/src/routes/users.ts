@@ -32,6 +32,25 @@ export async function userRoutes(app: FastifyInstance) {
     },
   });
 
+  // ---- 获取用户评分 ----
+  app.get('/users/me/rating', {
+    schema: {
+      description: '获取当前用户的平均评分（作为被评价方）',
+      tags: ['Users'],
+      security: [{bearerAuth: []}],
+    },
+    handler: async (request, reply) => {
+      try {
+        const rating = await userService.getUserRating(request.user!.sub);
+        return reply.send(rating);
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send({
+          error: err.message,
+        });
+      }
+    },
+  });
+
   // ---- 更新用户画像 ----
   app.put('/users/me/profile', {
     schema: {
@@ -48,7 +67,7 @@ export async function userRoutes(app: FastifyInstance) {
           },
           disability_type: {
             type: 'string',
-            enum: ['physical', 'visual', 'hearing', 'cognitive', 'elderly', 'none'],
+            enum: ['physical', 'visual', 'hearing', 'cognitive', 'none'],
           },
           assistive_device: {type: 'string', description: '辅助设备（逗号分隔多选）'},
           nav_preference: {
@@ -60,6 +79,22 @@ export async function userRoutes(app: FastifyInstance) {
             enum: ['standard', 'large', 'extra_large'],
           },
           avatar: {type: 'string', description: '头像 URL'},
+          gender: {
+            type: 'string',
+            enum: ['male', 'female', 'other'],
+            description: '性别',
+          },
+          birth_year: {
+            type: 'integer',
+            minimum: 1920,
+            maximum: 2020,
+            description: '出生年份',
+          },
+          city: {
+            type: 'string',
+            maxLength: 50,
+            description: '所在城市/城区',
+          },
         },
       },
     },

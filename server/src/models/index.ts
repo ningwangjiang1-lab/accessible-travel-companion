@@ -11,7 +11,7 @@
 
 export type UserRole = 'user' | 'volunteer' | 'professional' | 'admin';
 
-export type DisabilityType = 'physical' | 'visual' | 'hearing' | 'cognitive' | 'elderly' | 'none';
+export type DisabilityType = 'physical' | 'visual' | 'hearing' | 'cognitive' | 'none';
 
 export type NavPreference = 'avoid_overpass' | 'prefer_ramp' | 'flat_only' | 'barrier_free';
 
@@ -60,6 +60,9 @@ export interface User {
   avatar: string | null;
   role: UserRole;
   user_type: UserType;
+  gender: string | null;
+  birth_year: number | null;
+  city: string | null;
   created_at: Date;
   updated_at: Date;
 }

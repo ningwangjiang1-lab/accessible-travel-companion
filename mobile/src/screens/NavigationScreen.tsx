@@ -81,8 +81,8 @@ const NavigationScreen: React.FC<{route: any; navigation: any}> = ({route: route
     if (!isPaused) {
       const pulse = Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, {toValue: 1.3, duration: 800, useNativeDriver: true}),
-          Animated.timing(pulseAnim, {toValue: 1, duration: 800, useNativeDriver: true}),
+          Animated.timing(pulseAnim, {toValue: 1.3, duration: 800, useNativeDriver: false}),
+          Animated.timing(pulseAnim, {toValue: 1, duration: 800, useNativeDriver: false}),
         ]),
       );
       pulse.start();
@@ -431,15 +431,6 @@ const NavigationScreen: React.FC<{route: any; navigation: any}> = ({route: route
           <Text style={{fontSize: 22}}>{isPaused ? '▶️' : '⏸️'}</Text>
           <Text style={{color: colors.textSecondary, fontSize: fontSize['3xs'], marginTop: 2}}>
             {isPaused ? '继续' : '暂停'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* SOS 紧急求助 */}
-        <TouchableOpacity
-          style={[styles.sosBtn, {backgroundColor: colors.danger, borderRadius: borderRadius.full}]}
-          onPress={() => {/* TODO: Step 后续 — SOS 流程 */}}>
-          <Text style={{color: colors.textInverse, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any}}>
-            🆘 SOS
           </Text>
         </TouchableOpacity>
 

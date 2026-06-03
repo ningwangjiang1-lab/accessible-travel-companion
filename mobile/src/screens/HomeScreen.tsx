@@ -92,7 +92,6 @@ const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
   const disabilityLabel: Record<string, string> = {
     physical: '♿ 肢体障碍', visual: '🦯 视障',
     hearing: '🦻 听障', cognitive: '🧠 认知障碍',
-    elderly: '👴 高龄', unknown: '👤 未知',
   };
 
   /** 加载活跃行程 */
@@ -226,7 +225,6 @@ const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
                 {profile.disability_type === 'visual' && '🦯 视障'}
                 {profile.disability_type === 'hearing' && '🦻 听障'}
                 {profile.disability_type === 'cognitive' && '🧠 认知障碍'}
-                {profile.disability_type === 'elderly' && '👴 长辈模式'}
               </Text>
             </View>
           )}

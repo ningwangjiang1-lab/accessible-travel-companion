@@ -101,10 +101,10 @@ const TabLabel: React.FC<{label: string; focused: boolean}> = ({label, focused})
 /**
  * BottomTabNavigator — 主导航
  *
- * 5 个 Tab：
+ * 5 个 Tab（所有用户可见）：
  * - 🏠 首页  (HomeStack)
  * - 🤖 AI伴行 (AIStack)
- * - 🤝 真人伴行 (CompanionStack)
+ * - 🤝 真人伴行 (CompanionStack)  — 普通用户显示"未开放"
  * - 💬 消息  (MessagesStack)
  * - 👤 我的  (ProfileStack)
  */

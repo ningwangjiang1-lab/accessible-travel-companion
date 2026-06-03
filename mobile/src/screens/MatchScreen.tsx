@@ -41,8 +41,8 @@ const MatchScreen: React.FC<{route: any; navigation: any}> = ({route: routeParam
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {toValue: 0.4, duration: 800, useNativeDriver: true}),
-        Animated.timing(pulseAnim, {toValue: 1, duration: 800, useNativeDriver: true}),
+        Animated.timing(pulseAnim, {toValue: 0.4, duration: 800, useNativeDriver: false}),
+        Animated.timing(pulseAnim, {toValue: 1, duration: 800, useNativeDriver: false}),
       ]),
     );
     pulse.start();
@@ -137,7 +137,6 @@ const MatchScreen: React.FC<{route: any; navigation: any}> = ({route: routeParam
   const disabilityLabel: Record<string, string> = {
     physical: '♿ 肢体障碍', visual: '🦯 视障',
     hearing: '🦻 听障', cognitive: '🧠 认知障碍',
-    elderly: '👴 高龄',
   };
 
   return (

@@ -52,8 +52,9 @@ const STATUS_COLORS: Record<string, 'primary' | 'success' | 'warning' | 'danger'
 
 const CompanionScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const {colors, fontSize, fontWeight, spacing, borderRadius, shadows} = useTheme();
-  const {profile, mode} = useAuthStore();
+  const {profile, mode, user} = useAuthStore();
   const canProvideService = useAuthStore(s => s.user?.role === 'volunteer' || s.user?.role === 'professional');
+  const canUseCompanion = (profile && profile.disability_type !== 'none') || canProvideService;
 
   const [trips, setTrips] = useState<TripResult[]>([]);
   const [serviceOrders, setServiceOrders] = useState<tripService.AcceptedTrip[]>([]);
@@ -61,7 +62,6 @@ const CompanionScreen: React.FC<{navigation: any}> = ({navigation}) => {
 
   const disabilityLabel: Record<string, string> = {
     physical: '♿ 肢体', visual: '🦯 视障', hearing: '🦻 听障', cognitive: '🧠 认知',
-    elderly: '👴 高龄', unknown: '👤',
   };
 
   /** 加载行程列表 */
@@ -119,6 +119,79 @@ const CompanionScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const historyTrips = trips.filter(t => ['completed', 'cancelled'].includes(t.status));
   const activeOrders = serviceOrders.filter(o => ['matched', 'in_progress'].includes(o.status));
   const completedOrders = serviceOrders.filter(o => o.status === 'completed');
+
+  // 普通用户（非残障且非志愿者/专业陪护）— 功能未开放
+  if (!canUseCompanion) {
+    return (
+      <ScrollView
+        style={[styles.flex, {backgroundColor: colors.bg}]}
+        contentContainerStyle={{flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 32}}>
+
+        <View style={{alignItems: 'center', paddingVertical: 48, paddingHorizontal: 24}}>
+          <Text style={{fontSize: 56, marginBottom: 16}}>🚧</Text>
+          <Text style={{color: colors.textPrimary, fontSize: fontSize.xl, fontWeight: fontWeight.bold as any, textAlign: 'center', marginBottom: 12}}>
+            该功能暂未对您开放
+          </Text>
+          <Text style={{color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center', lineHeight: 22, marginBottom: 24}}>
+            真人伴行服务目前仅面向残障人士、志愿者和专业陪护人员开放。{'\n\n'}
+            您可以通过以下方式解锁该功能：
+          </Text>
+
+          {/* 升级入口卡片 */}
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.surface,
+              borderRadius: borderRadius.lg,
+              padding: 20,
+              marginBottom: 12,
+              borderWidth: 1,
+              borderColor: colors.borderLight,
+              width: '100%',
+            }}
+            onPress={() => navigation.navigate('ProfileTab', {screen: 'VolunteerCert'})}
+            activeOpacity={0.7}>
+            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+              <Text style={{fontSize: 32, marginRight: 16}}>🤝</Text>
+              <View style={{flex: 1}}>
+                <Text style={{color: colors.textPrimary, fontSize: fontSize.base, fontWeight: fontWeight.semibold as any}}>
+                  申请成为志愿者
+                </Text>
+                <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 4}}>
+                  完成基础培训即可成为志愿者，为他人提供出行陪伴
+                </Text>
+              </View>
+              <Text style={{color: colors.textTertiary, fontSize: fontSize.lg}}>›</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.surface,
+              borderRadius: borderRadius.lg,
+              padding: 20,
+              borderWidth: 1,
+              borderColor: colors.borderLight,
+              width: '100%',
+            }}
+            onPress={() => navigation.navigate('ProfileTab', {screen: 'ProfessionalCert'})}
+            activeOpacity={0.7}>
+            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+              <Text style={{fontSize: 32, marginRight: 16}}>💼</Text>
+              <View style={{flex: 1}}>
+                <Text style={{color: colors.textPrimary, fontSize: fontSize.base, fontWeight: fontWeight.semibold as any}}>
+                  申请专业陪护
+                </Text>
+                <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 4}}>
+                  持有相关资质证书可申请成为专业陪护人员
+                </Text>
+              </View>
+              <Text style={{color: colors.textTertiary, fontSize: fontSize.lg}}>›</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView

@@ -70,8 +70,8 @@ const CompanionActiveScreen: React.FC<{route: any; navigation: any}> = ({route: 
     if (session?.status === 'active') {
       const pulse = Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, {toValue: 0.3, duration: 1000, useNativeDriver: true}),
-          Animated.timing(pulseAnim, {toValue: 1, duration: 1000, useNativeDriver: true}),
+          Animated.timing(pulseAnim, {toValue: 0.3, duration: 1000, useNativeDriver: false}),
+          Animated.timing(pulseAnim, {toValue: 1, duration: 1000, useNativeDriver: false}),
         ]),
       );
       pulse.start();

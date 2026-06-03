@@ -19,22 +19,30 @@ import Card from '../components/Card/Card';
 /**
  * EditProfileScreen — 编辑资料页
  *
- * 可编辑字段：
+ * 可编辑字段（所有用户）：
  * - 姓名
+ * - 性别
+ * - 出生年份
+ * - 所在城市
+ * - 字体偏好（3 选 1）
+ *
+ * 仅残障人士额外可见：
  * - 残障类型（4 选 1）
  * - 辅助设备（多选标签）
  * - 导航偏好（多选标签）
- * - 字体偏好（3 选 1）
- *
- * 依赖：Step 5 authStore、Step 3 组件库
  */
+
+const GENDER_OPTIONS: TypeOption[] = [
+  {value: 'male', icon: '👨', label: '男'},
+  {value: 'female', icon: '👩', label: '女'},
+  {value: 'other', icon: '👤', label: '其他'},
+];
 
 const DISABILITY_OPTIONS: TypeOption[] = [
   {value: 'physical', icon: '🦽', label: '肢体障碍', description: '轮椅/拐杖'},
   {value: 'visual', icon: '🦯', label: '视力障碍', description: '盲道/语音'},
   {value: 'hearing', icon: '🦻', label: '听力障碍', description: '视觉提示'},
   {value: 'cognitive', icon: '🧠', label: '认知障碍', description: '简化导航'},
-  {value: 'elderly', icon: '👴', label: '高龄出行', description: '适老化辅助'},
 ];
 
 /** 辅助设备多选选项 */
@@ -65,12 +73,18 @@ const EditProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const {colors, fontSize, fontWeight, spacing, borderRadius} = useTheme();
   const {user, profile, updateProfile} = useAuthStore();
 
+  // 是否为残障人士
+  const isDisabledUser = user?.user_type === 'disabled';
+
   // ---- 从逗号分隔字符串解析数组 ----
   const parseCommaSep = (val: string | null | undefined): string[] =>
     val ? val.split(',').map(s => s.trim()).filter(Boolean) : [];
 
   // ---- 表单状态 ----
   const [name, setName] = useState(user?.name || '');
+  const [gender, setGender] = useState<string>(user?.gender || '');
+  const [birthYear, setBirthYear] = useState(user?.birth_year ? String(user.birth_year) : '');
+  const [city, setCity] = useState(user?.city || '');
   const [disabilityType, setDisabilityType] = useState<string>(profile?.disability_type || 'physical');
   const [assistiveDevices, setAssistiveDevices] = useState<string[]>(parseCommaSep(profile?.assistive_device));
   const [navPreferences, setNavPreferences] = useState<string[]>(parseCommaSep(profile?.nav_preference));
@@ -93,17 +107,29 @@ const EditProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
 
     setIsSubmitting(true);
     try {
+      const birthYearNum = birthYear ? parseInt(birthYear, 10) : undefined;
+      if (birthYear && (isNaN(birthYearNum!) || birthYearNum! < 1920 || birthYearNum! > 2020)) {
+        if (typeof window !== 'undefined') { window.alert('请输入有效的出生年份（1920-2020）'); }
+        Alert.alert('输入错误', '请输入有效的出生年份（1920-2020）');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 仅残障人士提交残障相关字段
       await updateProfile({
         name: name.trim(),
-        disability_type: disabilityType,
-        assistive_device: assistiveDevices.length > 0 ? assistiveDevices.join(',') : undefined,
-        nav_preference: navPreferences.length > 0 ? navPreferences.join(',') : undefined,
+        gender: gender || undefined,
+        birth_year: birthYearNum,
+        city: city.trim() || undefined,
+        disability_type: isDisabledUser ? disabilityType : undefined,
+        assistive_device: isDisabledUser && assistiveDevices.length > 0 ? assistiveDevices.join(',') : undefined,
+        nav_preference: isDisabledUser && navPreferences.length > 0 ? navPreferences.join(',') : undefined,
         font_preference: fontPreference,
       });
       const successMsg = '个人资料已更新';
       if (typeof window !== 'undefined') { window.alert('✅ 保存成功\n\n' + successMsg); }
       Alert.alert('✅ 保存成功', successMsg, [
-        {text: '好的', onPress: () => navigation.goBack()},
+        {text: '好的', onPress: () => navigation.navigate('ProfileMain')},
       ]);
     } catch (err: any) {
       const errMsg = err?.response?.data?.error || '请稍后重试';
@@ -123,7 +149,7 @@ const EditProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
       {/* 页头 */}
       <View style={[styles.header, {backgroundColor: colors.primary}]}>
         <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('ProfileMain')}>
             <Text style={{color: colors.textInverse, fontSize: fontSize.xl}}>←</Text>
           </TouchableOpacity>
           <Text style={[styles.headerTitle, {color: colors.textInverse, fontSize: fontSize.xl, fontWeight: fontWeight.bold as any}]}>
@@ -145,55 +171,96 @@ const EditProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
         />
       </Card>
 
-      {/* 残障类型 */}
+      {/* 性别 — 所有用户 */}
       <Card variant="card" style={{marginHorizontal: spacing.lg, marginTop: spacing.md}}>
         <Text style={[styles.sectionTitle, {color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}]}>
-          残障类型
+          性别
         </Text>
         <TypeSelector
-          options={DISABILITY_OPTIONS}
-          selectedValue={disabilityType}
-          onSelect={setDisabilityType}
+          options={GENDER_OPTIONS}
+          selectedValue={gender || ''}
+          onSelect={setGender}
         />
       </Card>
 
-      {/* 辅助设备（多选） */}
+      {/* 出生年份 — 所有用户 */}
       <Card variant="card" style={{marginHorizontal: spacing.lg, marginTop: spacing.md}}>
-        <Text style={[styles.sectionTitle, {color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}]}>
-          辅助设备
-          <Text style={{color: colors.textTertiary, fontWeight: '400', fontSize: fontSize.xs}}>（可多选）</Text>
-        </Text>
-        <View style={styles.tagsWrap}>
-          {DEVICE_TAGS.map(tag => (
-            <Tag
-              key={tag.value}
-              label={`${tag.icon} ${tag.label}`}
-              selected={assistiveDevices.includes(tag.value)}
-              onPress={() => toggleTag(setAssistiveDevices)(tag.value)}
-              style={{marginRight: spacing.sm, marginBottom: spacing.sm}}
-            />
-          ))}
-        </View>
+        <FormInput
+          label="出生年份"
+          value={birthYear}
+          onChangeText={setBirthYear}
+          placeholder="如：1990"
+          keyboardType="numeric"
+          maxLength={4}
+        />
       </Card>
 
-      {/* 导航偏好（多选） */}
+      {/* 所在城市 — 所有用户 */}
       <Card variant="card" style={{marginHorizontal: spacing.lg, marginTop: spacing.md}}>
-        <Text style={[styles.sectionTitle, {color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}]}>
-          导航偏好
-          <Text style={{color: colors.textTertiary, fontWeight: '400', fontSize: fontSize.xs}}>（可多选）</Text>
-        </Text>
-        <View style={styles.tagsWrap}>
-          {NAV_TAGS.map(tag => (
-            <Tag
-              key={tag.value}
-              label={`${tag.icon} ${tag.label}`}
-              selected={navPreferences.includes(tag.value)}
-              onPress={() => toggleTag(setNavPreferences)(tag.value)}
-              style={{marginRight: spacing.sm, marginBottom: spacing.sm}}
-            />
-          ))}
-        </View>
+        <FormInput
+          label="所在城市"
+          value={city}
+          onChangeText={setCity}
+          placeholder="如：北京市朝阳区"
+          maxLength={50}
+        />
       </Card>
+
+      {/* 残障类型 — 仅残障人士可见 */}
+      {isDisabledUser && (
+        <Card variant="card" style={{marginHorizontal: spacing.lg, marginTop: spacing.md}}>
+          <Text style={[styles.sectionTitle, {color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}]}>
+            残障类型
+          </Text>
+          <TypeSelector
+            options={DISABILITY_OPTIONS}
+            selectedValue={disabilityType}
+            onSelect={setDisabilityType}
+          />
+        </Card>
+      )}
+
+      {/* 辅助设备（多选） — 仅残障人士可见 */}
+      {isDisabledUser && (
+        <Card variant="card" style={{marginHorizontal: spacing.lg, marginTop: spacing.md}}>
+          <Text style={[styles.sectionTitle, {color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}]}>
+            辅助设备
+            <Text style={{color: colors.textTertiary, fontWeight: '400', fontSize: fontSize.xs}}>（可多选）</Text>
+          </Text>
+          <View style={styles.tagsWrap}>
+            {DEVICE_TAGS.map(tag => (
+              <Tag
+                key={tag.value}
+                label={`${tag.icon} ${tag.label}`}
+                selected={assistiveDevices.includes(tag.value)}
+                onPress={() => toggleTag(setAssistiveDevices)(tag.value)}
+                style={{marginRight: spacing.sm, marginBottom: spacing.sm}}
+              />
+            ))}
+          </View>
+        </Card>
+      )}
+
+      {/* 导航偏好（多选） — 仅残障人士可见 */}
+      {isDisabledUser && (
+        <Card variant="card" style={{marginHorizontal: spacing.lg, marginTop: spacing.md}}>
+          <Text style={[styles.sectionTitle, {color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}]}>
+            导航偏好
+            <Text style={{color: colors.textTertiary, fontWeight: '400', fontSize: fontSize.xs}}>（可多选）</Text>
+          </Text>
+          <View style={styles.tagsWrap}>
+            {NAV_TAGS.map(tag => (
+              <Tag
+                key={tag.value}
+                label={`${tag.icon} ${tag.label}`}
+                selected={navPreferences.includes(tag.value)}
+                onPress={() => toggleTag(setNavPreferences)(tag.value)}
+                style={{marginRight: spacing.sm, marginBottom: spacing.sm}}
+              />
+            ))}
+          </View>
+        </Card>
+      )}
 
       {/* 字体偏好 */}
       <Card variant="card" style={{marginHorizontal: spacing.lg, marginTop: spacing.md}}>

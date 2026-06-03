@@ -80,7 +80,7 @@ const ProfessionalCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
       const msg = '我们将尽快审核您的专业陪护资质申请';
       if (isWeb) { window.alert('✅ 申请已提交\n\n' + msg); }
       Alert.alert('✅ 申请已提交', msg, [
-        {text: '好的', onPress: () => navigation.goBack()},
+        {text: '好的', onPress: () => navigation.navigate('ProfileMain')},
       ]);
     } catch (err: any) {
       const errMsg = err?.response?.data?.error || '请稍后重试';
@@ -102,7 +102,7 @@ const ProfessionalCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
         <View style={styles.headerTop}>
           <TouchableOpacity
             style={[styles.backBtn, {backgroundColor: 'rgba(255,255,255,0.2)'}]}
-            onPress={() => navigation.goBack()}>
+            onPress={() => navigation.navigate('ProfileMain')}>
             <Text style={{color: colors.textInverse, fontSize: fontSize.xl}}>←</Text>
           </TouchableOpacity>
           <Text style={[styles.headerTitle, {color: colors.textInverse, fontSize: fontSize.xl, fontWeight: fontWeight.bold as any, marginLeft: 12}]}>

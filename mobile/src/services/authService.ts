@@ -13,10 +13,13 @@ export interface User {
   avatar: string | null;
   role: 'user' | 'volunteer' | 'professional' | 'admin';
   user_type?: 'disabled' | 'non_disabled';
+  gender?: 'male' | 'female' | 'other' | null;
+  birth_year?: number | null;
+  city?: string | null;
 }
 
 export interface DisabilityProfile {
-  disability_type: 'physical' | 'visual' | 'hearing' | 'cognitive' | 'elderly' | 'none';
+  disability_type: 'physical' | 'visual' | 'hearing' | 'cognitive' | 'none';
   assistive_device: string | null;
   nav_preference: string;
   font_preference: 'standard' | 'large' | 'extra_large';
@@ -37,6 +40,9 @@ export interface RegisterInput {
   assistive_device?: string;
   nav_preference?: string;
   font_preference?: string;
+  gender?: string;
+  birth_year?: number;
+  city?: string;
 }
 
 /**
@@ -100,6 +106,19 @@ export async function updateProfile(input: Partial<RegisterInput>): Promise<{use
  */
 export async function logout(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY_TOKEN);
+}
+
+export interface UserRating {
+  average: number | null;
+  count: number;
+}
+
+/**
+ * 获取当前用户的平均评分
+ */
+export async function getMyRating(): Promise<UserRating> {
+  const response = await api.get('/users/me/rating');
+  return response.data as UserRating;
 }
 
 /**

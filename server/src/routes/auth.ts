@@ -57,7 +57,7 @@ export async function authRoutes(app: FastifyInstance) {
           },
           disability_type: {
             type: 'string',
-            enum: ['physical', 'visual', 'hearing', 'cognitive', 'elderly', 'none'],
+            enum: ['physical', 'visual', 'hearing', 'cognitive', 'none'],
             description: '残障类型（none 表示非残障用户）',
           },
           assistive_device: {type: 'string', description: '辅具使用'},

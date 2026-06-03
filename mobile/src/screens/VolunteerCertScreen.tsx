@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import {useTheme} from '../theme';
 import * as certService from '../services/volunteerCertService';
-import type {VolunteerCertification, CertType, CertTypeInfo} from '../services/volunteerCertService';
+import type {VolunteerCertification} from '../services/volunteerCertService';
 import {STATUS_CONFIG} from '../services/volunteerCertService';
 import Card from '../components/Card/Card';
 import Badge from '../components/Badge/Badge';
@@ -20,14 +20,31 @@ import Divider from '../components/Divider/Divider';
 /**
  * VolunteerCertScreen — 志愿者认证
  *
- * 页面结构（按状态）：
- * 1. 无认证 → 认证类型选择 + 申请表单
- * 2. 审核中 → 状态卡片（等待审核）
- * 3. 已通过 → 认证勋章 + 证书详情
- * 4. 未通过 → 状态卡片 + 重新申请按钮
- *
- * 依赖：Step 3 组件库、volunteerCertService
+ * 流程：
+ * 1. 无认证 → 培训学习 → 填写个人信息 → 提交申请
+ * 2. 审核中 → 状态卡片
+ * 3. 已通过 → 认证勋章
+ * 4. 未通过 → 状态卡片 + 重新申请
  */
+
+/** 培训模块内容 */
+const TRAINING_MODULES = [
+  {
+    title: '无障碍意识培训',
+    icon: '♿',
+    content: '了解不同类型的残障（肢体、视力、听力、认知）及其出行障碍。学习如何正确使用无障碍设施，包括坡道、盲道、无障碍电梯等。掌握与残障人士沟通的基本礼仪和注意事项，尊重他们的独立性和尊严。',
+  },
+  {
+    title: '陪行服务规范',
+    icon: '🤝',
+    content: '志愿者行为准则：准时到达约定地点，主动介绍自己，确认行程需求。陪行过程中保持适当的距离和沟通频率。不得擅自更改行程路线，尊重被陪护人的隐私。服务完成后及时确认到达，并请对方评价。',
+  },
+  {
+    title: '紧急情况处理',
+    icon: '🆘',
+    content: '学习识别常见紧急情况：跌倒、突发疾病、设备故障等。掌握基本的急救知识和操作流程。知道如何快速联系平台客服和紧急联系人。了解 SOS 紧急求助功能的使用方法。保持冷静，优先保障被陪护人的安全。',
+  },
+];
 
 const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const {colors, fontSize, fontWeight, spacing, borderRadius} = useTheme();
@@ -38,12 +55,13 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const [hasCert, setHasCert] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // ---- 培训状态 ----
+  const [trainingStep, setTrainingStep] = useState(-1); // -1=未开始, 0/1/2=模块索引, 3=已完成
+  const [trainingCompleted, setTrainingCompleted] = useState(false);
+
   // ---- 申请表单 ----
-  const [certTypes, setCertTypes] = useState<CertTypeInfo[]>([]);
-  const [selectedType, setSelectedType] = useState<CertType>('basic');
   const [formRealName, setFormRealName] = useState('');
   const [formIdCard, setFormIdCard] = useState('');
-  const [formTrainingDone, setFormTrainingDone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ---- 加载 ----
@@ -53,6 +71,9 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
       const result = await certService.getMyCertification();
       setHasCert(result.has_cert);
       setCert(result.certification);
+      if (result.certification) {
+        setTrainingCompleted(result.certification.training_completed);
+      }
     } catch (err: any) {
       setErrorMsg(err?.response?.data?.error || '加载失败');
     } finally {
@@ -60,19 +81,23 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
     }
   }, []);
 
-  const loadCertTypes = useCallback(async () => {
-    try {
-      const result = await certService.getCertTypes();
-      setCertTypes(result);
-    } catch {
-      // 静默
-    }
-  }, []);
-
   useEffect(() => {
     loadCertification();
-    loadCertTypes();
-  }, [loadCertification, loadCertTypes]);
+  }, [loadCertification]);
+
+  // ---- 培训导航 ----
+  const startTraining = () => setTrainingStep(0);
+  const nextTrainingStep = () => {
+    if (trainingStep < TRAINING_MODULES.length - 1) {
+      setTrainingStep(s => s + 1);
+    } else {
+      setTrainingStep(TRAINING_MODULES.length); // 完成
+      setTrainingCompleted(true);
+    }
+  };
+  const prevTrainingStep = () => {
+    if (trainingStep > 0) setTrainingStep(s => s - 1);
+  };
 
   // ---- 提交 ----
   const handleSubmit = async () => {
@@ -84,7 +109,6 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
       return;
     }
 
-    // 身份证号必填
     if (!formIdCard.trim()) {
       if (isWeb) { window.alert('身份证号为必填项'); }
       Alert.alert('请填写身份证号', '身份证号为必填项');
@@ -98,9 +122,9 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
       return;
     }
 
-    if (!formTrainingDone) {
+    if (!trainingCompleted) {
       if (isWeb) { window.alert('请先完成基础培训课程'); }
-      Alert.alert('请完成培训', '需要先完成基础培训课程才能提交认证');
+      Alert.alert('请完成培训', '需要先完成全部培训模块才能提交认证');
       return;
     }
 
@@ -109,8 +133,8 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
       await certService.submitCertification({
         real_name: formRealName.trim(),
         id_card_number: formIdCard.trim(),
-        cert_type: selectedType,
-        training_completed: formTrainingDone,
+        cert_type: 'basic',
+        training_completed: true,
       });
 
       const successMsg = '我们将尽快审核您的认证申请，审核结果将在 3-5 个工作日内通知';
@@ -130,18 +154,14 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
   // ---- 重新申请（rejected 状态） ----
   const handleRetry = () => {
     if (cert) {
-      setSelectedType(cert.cert_type);
       setFormRealName(cert.real_name);
       setFormIdCard(cert.id_card_number || '');
-      setFormTrainingDone(cert.training_completed);
+      setTrainingCompleted(cert.training_completed);
+      setTrainingStep(cert.training_completed ? TRAINING_MODULES.length : -1);
     }
-    // 通过 loadCertification 刷新
     setHasCert(false);
     setCert(null);
   };
-
-  // ---- 当前选中类型的配置 ----
-  const currentTypeConfig = certTypes.find(t => t.value === selectedType);
 
   return (
     <ScrollView
@@ -155,7 +175,7 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
         <View style={styles.headerTop}>
           <TouchableOpacity
             style={[styles.backBtn, {backgroundColor: 'rgba(255,255,255,0.2)'}]}
-            onPress={() => navigation.goBack()}>
+            onPress={() => navigation.navigate('ProfileMain')}>
             <Text style={{color: colors.textInverse, fontSize: fontSize.xl}}>←</Text>
           </TouchableOpacity>
           <Text style={[styles.headerTitle, {color: colors.textInverse, fontSize: fontSize.xl, fontWeight: fontWeight.bold as any, marginLeft: 12}]}>
@@ -227,7 +247,7 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
 
                   {/* 申请详情 */}
                   <View style={{paddingVertical: spacing.sm}}>
-                    <DetailRow label="认证类型" value={`${currentTypeConfig?.icon || '📋'} ${currentTypeConfig?.label || cert.cert_type}`} colors={colors} fontSize={fontSize} fontWeight={fontWeight} />
+                    <DetailRow label="认证类型" value="📋 基础志愿者培训" colors={colors} fontSize={fontSize} fontWeight={fontWeight} />
                     <DetailRow label="真实姓名" value={cert.real_name} colors={colors} fontSize={fontSize} fontWeight={fontWeight} />
                     {cert.id_card_number && (
                       <DetailRow
@@ -296,128 +316,226 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
         </View>
       ) : (
         /* ============================================================ */
-        /* 无认证 → 申请表单 */
+        /* 无认证 → 培训 + 申请表单 */
         /* ============================================================ */
         <View style={{padding: spacing.lg}}>
-          {/* 认证类型选择 */}
+          {/* ============ 第一步：基础培训 ============ */}
           <Text style={[styles.sectionTitle, {color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any}]}>
-            选择认证类型
+            📖 基础志愿者培训
           </Text>
           <Text style={{color: colors.textTertiary, fontSize: fontSize.sm, marginBottom: spacing.md}}>
-            请选择您要申请的志愿者认证类型（每人限申请一项）
+            在提交认证前，请完成以下三个培训模块的学习
           </Text>
 
-          {certTypes.map(type => (
-            <TouchableOpacity key={type.value} activeOpacity={0.7} onPress={() => setSelectedType(type.value)}>
-              <Card
-                variant="card"
-                style={{
-                  marginBottom: spacing.sm,
-                  borderWidth: selectedType === type.value ? 2 : 0,
-                  borderColor: selectedType === type.value ? colors.success : 'transparent',
-                }}>
-                <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
-                  <Text style={{fontSize: 28, marginRight: spacing.md, marginTop: 2}}>{type.icon}</Text>
-                  <View style={{flex: 1}}>
-                    <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                      <Text style={{color: colors.textPrimary, fontSize: fontSize.base, fontWeight: fontWeight.semibold as any, flex: 1}}>
-                        {type.label}
-                      </Text>
-                      {selectedType === type.value && (
-                        <Badge text="已选" variant="success" />
-                      )}
-                    </View>
-                    <Text style={{color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 4, lineHeight: 20}}>
-                      {type.description}
-                    </Text>
-                    {/* 要求列表 */}
-                    <View style={{marginTop: spacing.sm}}>
-                      {type.requirements.map((req, i) => (
-                        <Text key={i} style={{color: colors.textTertiary, fontSize: fontSize.xs, lineHeight: 18}}>
-                          • {req}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              </Card>
-            </TouchableOpacity>
-          ))}
-
-          <Divider style={{marginVertical: spacing.lg}} />
-
-          {/* 个人信息表单 */}
-          <Text style={[styles.sectionTitle, {color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any}]}>
-            填写申请信息
-          </Text>
-
-          <FormInput
-            label="真实姓名 *"
-            value={formRealName}
-            onChangeText={setFormRealName}
-            placeholder="与身份证一致的真实姓名"
-            required
-            maxLength={20}
-          />
-
-          <FormInput
-            label="身份证号 *"
-            value={formIdCard}
-            onChangeText={setFormIdCard}
-            placeholder="18 位身份证号码"
-            required
-            maxLength={18}
-            keyboardType="default"
-          />
-
-          {/* 培训完成状态 */}
-          <Card variant="card-flat" style={{marginBottom: spacing.lg}}>
-            <TouchableOpacity
-              style={styles.toggleRow}
-              activeOpacity={0.6}
-              onPress={() => setFormTrainingDone(prev => !prev)}>
-              <View style={{flex: 1}}>
-                <Text style={{color: colors.textPrimary, fontSize: fontSize.base, fontWeight: fontWeight.medium as any}}>
-                  {currentTypeConfig?.icon || '📋'} 已完成{currentTypeConfig?.label || ''}培训
-                </Text>
-                <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 2}}>
-                  请确认您已完成相关培训课程
-                </Text>
-              </View>
+          {/* 培训进度条 */}
+          <View style={{flexDirection: 'row', marginBottom: spacing.md, gap: 4}}>
+            {TRAINING_MODULES.map((_, i) => (
               <View
-                style={[
-                  styles.toggle,
-                  {
-                    backgroundColor: formTrainingDone ? colors.success : colors.borderLight,
-                    borderRadius: borderRadius.full,
-                  },
-                ]}>
-                <View
-                  style={[
-                    styles.toggleKnob,
-                    {
-                      backgroundColor: colors.textInverse,
-                      alignSelf: formTrainingDone ? 'flex-end' : 'flex-start',
-                    },
-                  ]}
+                key={i}
+                style={{
+                  flex: 1,
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: i <= trainingStep && trainingStep >= 0
+                    ? colors.success
+                    : colors.borderLight,
+                }}
+              />
+            ))}
+          </View>
+
+          {/* 培训内容区域 */}
+          {trainingStep === -1 ? (
+            /* 未开始培训 */
+            <Card variant="card" style={{marginBottom: spacing.lg}}>
+              <View style={{alignItems: 'center', paddingVertical: spacing.lg}}>
+                <Text style={{fontSize: 48, marginBottom: spacing.md}}>📚</Text>
+                <Text style={{color: colors.textPrimary, fontSize: fontSize.base, fontWeight: fontWeight.semibold as any, textAlign: 'center', marginBottom: spacing.sm}}>
+                  基础志愿者培训课程
+                </Text>
+                <Text style={{color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center', lineHeight: 20, marginBottom: spacing.lg}}>
+                  本培训包含无障碍意识、陪行规范和紧急处理三大模块{'\n'}
+                  完成全部学习后方可提交认证申请
+                </Text>
+
+                {/* 模块预览 */}
+                {TRAINING_MODULES.map((mod, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: colors.bg,
+                      borderRadius: borderRadius.md,
+                      padding: spacing.md,
+                      marginBottom: spacing.sm,
+                      width: '100%',
+                    }}>
+                    <Text style={{fontSize: 28, marginRight: spacing.md}}>{mod.icon}</Text>
+                    <View style={{flex: 1}}>
+                      <Text style={{color: colors.textPrimary, fontSize: fontSize.sm, fontWeight: fontWeight.medium as any}}>
+                        {mod.title}
+                      </Text>
+                    </View>
+                    <Text style={{color: colors.textTertiary, fontSize: fontSize.sm}}>待学习</Text>
+                  </View>
+                ))}
+
+                <Button
+                  title="🚀 开始培训"
+                  variant="primary"
+                  size="default"
+                  onPress={startTraining}
+                  style={{marginTop: spacing.md}}
                 />
               </View>
-            </TouchableOpacity>
-          </Card>
+            </Card>
+          ) : trainingStep >= 0 && trainingStep < TRAINING_MODULES.length ? (
+            /* 培训学习中 */
+            <Card variant="card" style={{marginBottom: spacing.lg}}>
+              <View style={{paddingVertical: spacing.sm}}>
+                {/* 当前模块标题 */}
+                <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md}}>
+                  <Text style={{fontSize: 36, marginRight: spacing.md}}>
+                    {TRAINING_MODULES[trainingStep].icon}
+                  </Text>
+                  <View style={{flex: 1}}>
+                    <Text style={{color: colors.textTertiary, fontSize: fontSize.xs}}>
+                      模块 {trainingStep + 1} / {TRAINING_MODULES.length}
+                    </Text>
+                    <Text style={{color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any}}>
+                      {TRAINING_MODULES[trainingStep].title}
+                    </Text>
+                  </View>
+                </View>
 
-          {/* 提交按钮 */}
-          <Button
-            title={isSubmitting ? '提交中...' : '📤 提交认证申请'}
-            variant="primary"
-            size="default"
-            disabled={isSubmitting}
-            onPress={handleSubmit}
-          />
+                <Divider style={{marginBottom: spacing.md}} />
 
-          {/* 说明 */}
-          <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, textAlign: 'center', marginTop: spacing.md, lineHeight: 18}}>
-            提交后将由平台工作人员审核{'\n'}审核结果将在 3-5 个工作日内通知
-          </Text>
+                {/* 培训内容 */}
+                <View style={{
+                  backgroundColor: colors.bg,
+                  borderRadius: borderRadius.md,
+                  padding: spacing.lg,
+                  marginBottom: spacing.lg,
+                }}>
+                  <Text style={{
+                    color: colors.textPrimary,
+                    fontSize: fontSize.sm,
+                    lineHeight: 24,
+                  }}>
+                    {TRAINING_MODULES[trainingStep].content}
+                  </Text>
+                </View>
+
+                {/* 导航按钮 */}
+                <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
+                  {trainingStep > 0 ? (
+                    <TouchableOpacity
+                      style={{
+                        paddingVertical: 10,
+                        paddingHorizontal: 20,
+                        borderRadius: borderRadius.full,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                      onPress={prevTrainingStep}>
+                      <Text style={{color: colors.textSecondary, fontSize: fontSize.sm}}>‹ 上一模块</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={{
+                        paddingVertical: 10,
+                        paddingHorizontal: 20,
+                        borderRadius: borderRadius.full,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      }}
+                      onPress={() => setTrainingStep(-1)}>
+                      <Text style={{color: colors.textSecondary, fontSize: fontSize.sm}}>‹ 返回列表</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 24,
+                      borderRadius: borderRadius.full,
+                      backgroundColor: colors.success,
+                    }}
+                    onPress={nextTrainingStep}>
+                    <Text style={{color: '#fff', fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}}>
+                      {trainingStep < TRAINING_MODULES.length - 1 ? '下一模块 ›' : '✅ 完成培训'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Card>
+          ) : (
+            /* 培训已完成 */
+            <Card variant="card" style={{marginBottom: spacing.lg}}>
+              <View style={{alignItems: 'center', paddingVertical: spacing.md}}>
+                <Text style={{fontSize: 40, marginBottom: spacing.sm}}>✅</Text>
+                <Text style={{color: colors.success, fontSize: fontSize.base, fontWeight: fontWeight.bold as any, textAlign: 'center'}}>
+                  培训已完成
+                </Text>
+                <Text style={{color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center', marginTop: spacing.sm, lineHeight: 20}}>
+                  您已通过全部三个培训模块{'\n'}请填写以下信息提交认证申请
+                </Text>
+                <TouchableOpacity
+                  style={{marginTop: spacing.md, paddingVertical: 6, paddingHorizontal: 16}}
+                  onPress={() => setTrainingStep(0)}>
+                  <Text style={{color: colors.primary, fontSize: fontSize.xs}}>重新学习</Text>
+                </TouchableOpacity>
+              </View>
+            </Card>
+          )}
+
+          {/* ============ 第二步：个人信息（培训完成后才可填写） ============ */}
+          {trainingCompleted && (
+            <>
+              <Divider style={{marginVertical: spacing.lg}} />
+
+              <Text style={[styles.sectionTitle, {color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any}]}>
+                📋 填写认证信息
+              </Text>
+              <Text style={{color: colors.textTertiary, fontSize: fontSize.sm, marginBottom: spacing.md}}>
+                请填写与身份证一致的真实信息，用于平台审核
+              </Text>
+
+              <FormInput
+                label="真实姓名 *"
+                value={formRealName}
+                onChangeText={setFormRealName}
+                placeholder="与身份证一致的真实姓名"
+                required
+                maxLength={20}
+              />
+
+              <FormInput
+                label="身份证号 *"
+                value={formIdCard}
+                onChangeText={setFormIdCard}
+                placeholder="18 位身份证号码"
+                required
+                maxLength={18}
+                keyboardType="default"
+              />
+
+              {/* 提交按钮 */}
+              <Button
+                title={isSubmitting ? '提交中...' : '📤 提交认证申请'}
+                variant="primary"
+                size="default"
+                disabled={isSubmitting}
+                onPress={handleSubmit}
+                style={{marginTop: spacing.md}}
+              />
+
+              {/* 说明 */}
+              <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, textAlign: 'center', marginTop: spacing.md, lineHeight: 18}}>
+                提交后将由平台工作人员审核{'\n'}审核结果将在 3-5 个工作日内通知
+              </Text>
+            </>
+          )}
         </View>
       )}
 
@@ -483,23 +601,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 32,
     paddingVertical: 80,
-  },
-  // ---- Toggle ----
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  toggle: {
-    width: 48,
-    height: 28,
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  toggleKnob: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
   },
 });
 
