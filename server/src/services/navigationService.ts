@@ -45,12 +45,17 @@ export interface NavigationData {
     distance_display: string;
     duration_display: string;
     accessibility_score: number;
+    coordinates: [number, number][];
+    origin: [number, number];
+    destination: [number, number];
   };
   steps: NavigationStep[];
   obstacles: ObstacleWarning[];
   companion: {
     name: string;
     phone: string;
+    lat: number;
+    lon: number;
   } | null;
 }
 
