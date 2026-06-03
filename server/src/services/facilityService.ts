@@ -171,10 +171,11 @@ export async function searchFacilities(
     result = result.filter(f => f.facility_type === params.facility_type);
   }
 
-  // 按距离筛选（模拟：基于坐标简单排序）
+  // 按距离筛选（基于坐标简单排序）
   if (params.lat !== undefined && params.lng !== undefined) {
     result = result.map(f => {
-      const [flng, flat] = f.location.coordinates;
+      const flat = (f as any).lat || 0;
+      const flng = (f as any).lon || 0;
       const dLat = (flat - params.lat!) * 111000; // 1° ≈ 111km
       const dLng = (flng - params.lng!) * 111000 * Math.cos(params.lat! * Math.PI / 180);
       const distance = Math.sqrt(dLat * dLat + dLng * dLng);

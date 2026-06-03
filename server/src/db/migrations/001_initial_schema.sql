@@ -2,13 +2,10 @@
 -- 无障碍出行陪伴平台 — 初始数据库 Schema
 --
 -- Version: 001
--- Tables: 16 张（对照 PRD 第四章数据模型）
--- Requires: PostgreSQL 16 + PostGIS 3
+-- Tables: 16 张
 -- ============================================================
 
--- 确保扩展已启用
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS postgis_topology;
+-- 确保 uuid 扩展已启用（不依赖 PostGIS）
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================
@@ -25,8 +22,8 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_users_phone ON users(phone);
-CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
 -- ============================================================
 -- 2. disability_profiles — 残障画像
@@ -35,20 +32,18 @@ CREATE TABLE IF NOT EXISTS disability_profiles (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id         UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   disability_type VARCHAR(20) NOT NULL DEFAULT 'physical'
-                  CHECK (disability_type IN ('physical', 'visual', 'hearing', 'cognitive')),
+                  CHECK (disability_type IN ('physical', 'visual', 'hearing', 'cognitive', 'none')),
   assistive_device VARCHAR(50),
-  nav_preference  VARCHAR(50) DEFAULT 'barrier_free'
-                  CHECK (nav_preference IN ('avoid_overpass', 'prefer_ramp', 'flat_only', 'barrier_free')),
-  font_preference VARCHAR(10) DEFAULT 'standard'
-                  CHECK (font_preference IN ('standard', 'large', 'extra_large')),
+  nav_preference  VARCHAR(50) DEFAULT 'barrier_free',
+  font_preference VARCHAR(20) DEFAULT 'standard',
   cognition_level VARCHAR(10) DEFAULT 'normal'
                   CHECK (cognition_level IN ('normal', 'mild', 'moderate')),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_disability_profiles_user ON disability_profiles(user_id);
-CREATE INDEX idx_disability_profiles_type ON disability_profiles(disability_type);
+CREATE INDEX IF NOT EXISTS idx_disability_profiles_user ON disability_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_disability_profiles_type ON disability_profiles(disability_type);
 
 -- ============================================================
 -- 3. emergency_contacts — 紧急联系人
@@ -66,33 +61,35 @@ CREATE TABLE IF NOT EXISTS emergency_contacts (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_emergency_contacts_user ON emergency_contacts(user_id);
+CREATE INDEX IF NOT EXISTS idx_emergency_contacts_user ON emergency_contacts(user_id);
 
 -- ============================================================
--- 4. geo_fences — 电子围栏
+-- 4. geo_fences — 电子围栏（lat/lon 替代 PostGIS）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS geo_fences (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name            VARCHAR(100) NOT NULL,
-  center          GEOMETRY(Point, 4326) NOT NULL,
+  center_lat      DOUBLE PRECISION NOT NULL DEFAULT 0,
+  center_lon      DOUBLE PRECISION NOT NULL DEFAULT 0,
   radius_meters   INTEGER NOT NULL DEFAULT 500,
   is_active       BOOLEAN DEFAULT true,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_geo_fences_user ON geo_fences(user_id);
-CREATE INDEX idx_geo_fences_center ON geo_fences USING GIST(center);
+CREATE INDEX IF NOT EXISTS idx_geo_fences_user ON geo_fences(user_id);
 
 -- ============================================================
--- 5. trips — 行程
+-- 5. trips — 行程（lat/lon 替代 PostGIS）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS trips (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  start_location  GEOMETRY(Point, 4326) NOT NULL,
-  end_location    GEOMETRY(Point, 4326) NOT NULL,
+  start_lat       DOUBLE PRECISION,
+  start_lon       DOUBLE PRECISION,
+  end_lat         DOUBLE PRECISION,
+  end_lon         DOUBLE PRECISION,
   start_address   VARCHAR(255),
   end_address     VARCHAR(255),
   start_time      TIMESTAMPTZ,
@@ -106,19 +103,17 @@ CREATE TABLE IF NOT EXISTS trips (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_trips_user ON trips(user_id);
-CREATE INDEX idx_trips_status ON trips(status);
-CREATE INDEX idx_trips_start ON trips USING GIST(start_location);
-CREATE INDEX idx_trips_end ON trips USING GIST(end_location);
+CREATE INDEX IF NOT EXISTS idx_trips_user ON trips(user_id);
+CREATE INDEX IF NOT EXISTS idx_trips_status ON trips(status);
 
 -- ============================================================
--- 6. routes — 路线规划记录
+-- 6. routes — 路线规划记录（JSONB 替代 LineString）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS routes (
   id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   trip_id             UUID REFERENCES trips(id) ON DELETE SET NULL,
   user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  route_geom          GEOMETRY(LineString, 4326),
+  coordinates         JSONB DEFAULT '[]',
   distance_meters     INTEGER,
   duration_seconds    INTEGER,
   accessibility_score INTEGER CHECK (accessibility_score >= 0 AND accessibility_score <= 100),
@@ -129,9 +124,8 @@ CREATE TABLE IF NOT EXISTS routes (
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_routes_trip ON routes(trip_id);
-CREATE INDEX idx_routes_user ON routes(user_id);
-CREATE INDEX idx_routes_geom ON routes USING GIST(route_geom);
+CREATE INDEX IF NOT EXISTS idx_routes_trip ON routes(trip_id);
+CREATE INDEX IF NOT EXISTS idx_routes_user ON routes(user_id);
 
 -- ============================================================
 -- 7. matches — 行程匹配记录
@@ -150,9 +144,9 @@ CREATE TABLE IF NOT EXISTS matches (
   UNIQUE(trip_id, companion_id)
 );
 
-CREATE INDEX idx_matches_trip ON matches(trip_id);
-CREATE INDEX idx_matches_companion ON matches(companion_id);
-CREATE INDEX idx_matches_score ON matches(match_score DESC);
+CREATE INDEX IF NOT EXISTS idx_matches_trip ON matches(trip_id);
+CREATE INDEX IF NOT EXISTS idx_matches_companion ON matches(companion_id);
+CREATE INDEX IF NOT EXISTS idx_matches_score ON matches(match_score DESC);
 
 -- ============================================================
 -- 8. companion_sessions — 陪行会话
@@ -171,12 +165,12 @@ CREATE TABLE IF NOT EXISTS companion_sessions (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_companion_sessions_trip ON companion_sessions(trip_id);
-CREATE INDEX idx_companion_sessions_user ON companion_sessions(user_id);
-CREATE INDEX idx_companion_sessions_companion ON companion_sessions(companion_id);
+CREATE INDEX IF NOT EXISTS idx_companion_sessions_trip ON companion_sessions(trip_id);
+CREATE INDEX IF NOT EXISTS idx_companion_sessions_user ON companion_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_companion_sessions_companion ON companion_sessions(companion_id);
 
 -- ============================================================
--- 9. orders — 订单（专业陪护模式）
+-- 9. orders — 订单
 -- ============================================================
 CREATE TABLE IF NOT EXISTS orders (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -194,8 +188,8 @@ CREATE TABLE IF NOT EXISTS orders (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_orders_user ON orders(user_id);
-CREATE INDEX idx_orders_professional ON orders(professional_id);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_professional ON orders(professional_id);
 
 -- ============================================================
 -- 10. ratings — 评价
@@ -212,19 +206,20 @@ CREATE TABLE IF NOT EXISTS ratings (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_ratings_session ON ratings(session_id);
-CREATE INDEX idx_ratings_reviewee ON ratings(reviewee_id);
-CREATE INDEX idx_ratings_reviewer ON ratings(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_ratings_session ON ratings(session_id);
+CREATE INDEX IF NOT EXISTS idx_ratings_reviewee ON ratings(reviewee_id);
+CREATE INDEX IF NOT EXISTS idx_ratings_reviewer ON ratings(reviewer_id);
 
 -- ============================================================
--- 11. facilities — 无障碍设施
+-- 11. facilities — 无障碍设施（lat/lon 替代 PostGIS）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS facilities (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name            VARCHAR(200) NOT NULL,
   facility_type   VARCHAR(30) NOT NULL
                   CHECK (facility_type IN ('accessible_toilet', 'parking', 'elevator', 'ramp', 'low_counter', 'braille_sign')),
-  location        GEOMETRY(Point, 4326) NOT NULL,
+  lat             DOUBLE PRECISION NOT NULL DEFAULT 0,
+  lon             DOUBLE PRECISION NOT NULL DEFAULT 0,
   address         VARCHAR(255),
   floor           VARCHAR(20),
   door_width_cm   INTEGER,
@@ -238,9 +233,8 @@ CREATE TABLE IF NOT EXISTS facilities (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_facilities_type ON facilities(facility_type);
-CREATE INDEX idx_facilities_location ON facilities USING GIST(location);
-CREATE INDEX idx_facilities_verified ON facilities(verified);
+CREATE INDEX IF NOT EXISTS idx_facilities_type ON facilities(facility_type);
+CREATE INDEX IF NOT EXISTS idx_facilities_verified ON facilities(verified);
 
 -- ============================================================
 -- 12. facility_statuses — 设施实时状态
@@ -256,16 +250,17 @@ CREATE TABLE IF NOT EXISTS facility_statuses (
   valid_until     TIMESTAMPTZ
 );
 
-CREATE INDEX idx_facility_statuses_facility ON facility_statuses(facility_id);
-CREATE INDEX idx_facility_statuses_status ON facility_statuses(status);
+CREATE INDEX IF NOT EXISTS idx_facility_statuses_facility ON facility_statuses(facility_id);
+CREATE INDEX IF NOT EXISTS idx_facility_statuses_status ON facility_statuses(status);
 
 -- ============================================================
--- 13. obstacle_reports — 障碍上报
+-- 13. obstacle_reports — 障碍上报（lat/lon 替代 PostGIS）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS obstacle_reports (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  location        GEOMETRY(Point, 4326) NOT NULL,
+  lat             DOUBLE PRECISION NOT NULL DEFAULT 0,
+  lon             DOUBLE PRECISION NOT NULL DEFAULT 0,
   obstacle_type   VARCHAR(30) NOT NULL
                   CHECK (obstacle_type IN ('construction', 'parked_vehicle', 'broken_elevator', 'flooding', 'debris', 'other')),
   description     TEXT,
@@ -278,9 +273,8 @@ CREATE TABLE IF NOT EXISTS obstacle_reports (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_obstacle_reports_user ON obstacle_reports(user_id);
-CREATE INDEX idx_obstacle_reports_location ON obstacle_reports USING GIST(location);
-CREATE INDEX idx_obstacle_reports_status ON obstacle_reports(status);
+CREATE INDEX IF NOT EXISTS idx_obstacle_reports_user ON obstacle_reports(user_id);
+CREATE INDEX IF NOT EXISTS idx_obstacle_reports_status ON obstacle_reports(status);
 
 -- ============================================================
 -- 14. volunteer_certifications — 志愿者认证
@@ -292,7 +286,7 @@ CREATE TABLE IF NOT EXISTS volunteer_certifications (
   id_card_number  VARCHAR(18),
   id_card_photo   TEXT,
   cert_type       VARCHAR(30) NOT NULL DEFAULT 'basic'
-                  CHECK (cert_type IN ('basic', 'professional', 'first_aid', 'sign_language', 'guide_dog_handler')),
+                  CHECK (cert_type IN ('basic')),
   cert_photo      TEXT,
   training_completed BOOLEAN DEFAULT false,
   status          VARCHAR(20) DEFAULT 'pending'
@@ -303,8 +297,8 @@ CREATE TABLE IF NOT EXISTS volunteer_certifications (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_volunteer_certs_user ON volunteer_certifications(user_id);
-CREATE INDEX idx_volunteer_certs_status ON volunteer_certifications(status);
+CREATE INDEX IF NOT EXISTS idx_volunteer_certs_user ON volunteer_certifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_volunteer_certs_status ON volunteer_certifications(status);
 
 -- ============================================================
 -- 15. professional_certifications — 专业资质
@@ -328,8 +322,8 @@ CREATE TABLE IF NOT EXISTS professional_certifications (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_professional_certs_user ON professional_certifications(user_id);
-CREATE INDEX idx_professional_certs_status ON professional_certifications(status);
+CREATE INDEX IF NOT EXISTS idx_professional_certs_user ON professional_certifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_professional_certs_status ON professional_certifications(status);
 
 -- ============================================================
 -- 16. messages — 消息
@@ -348,12 +342,11 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_messages_sender ON messages(sender_id);
-CREATE INDEX idx_messages_receiver ON messages(receiver_id);
-CREATE INDEX idx_messages_session ON messages(session_id);
-CREATE INDEX idx_messages_type ON messages(message_type);
-CREATE INDEX idx_messages_unread ON messages(receiver_id, is_read) WHERE is_read = false;
-CREATE INDEX idx_messages_created ON messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_messages_type ON messages(message_type);
+CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at DESC);
 
 -- ============================================================
 -- 自动更新 updated_at 触发器
@@ -379,7 +372,7 @@ BEGIN
       AND table_name NOT LIKE 'sql_%'
   LOOP
     EXECUTE format(
-      'CREATE TRIGGER update_%I_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()',
+      'CREATE OR REPLACE TRIGGER update_%I_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()',
       t, t
     );
   END LOOP;
