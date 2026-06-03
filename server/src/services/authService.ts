@@ -21,16 +21,16 @@ const CODE_EXPIRY_MS = 5 * 60 * 1000; // 5 分钟有效
  * 开发环境固定返回 123456，生产环境接入阿里云短信/腾讯云短信。
  */
 export async function sendVerificationCode(phone: string): Promise<{success: boolean}> {
-  const code = process.env.NODE_ENV === 'production'
-    ? Math.floor(100000 + Math.random() * 900000).toString()
-    : DEV_CODE;
+  // 暂用固定验证码（接入短信服务后改为随机码）
+  const code = DEV_CODE;
 
   codeStore.set(phone, {
     code,
     expiresAt: Date.now() + CODE_EXPIRY_MS,
   });
 
-  // 生产环境在此调用短信服务商 API
+  // TODO: 接入阿里云短信/腾讯云短信后改为随机码并发送
+  console.log(`[SMS] Verification code for ${phone}: ${code}`);
 
   return {success: true};
 }
@@ -39,8 +39,8 @@ export async function sendVerificationCode(phone: string): Promise<{success: boo
  * 验证验证码
  */
 function verifyCode(phone: string, code: string): boolean {
-  // 开发环境：固定码
-  if (process.env.NODE_ENV !== 'production' && code === DEV_CODE) {
+  // 固定验证码（所有环境通用，接入短信服务后改为随机码验证）
+  if (code === DEV_CODE) {
     return true;
   }
 
@@ -52,7 +52,6 @@ function verifyCode(phone: string, code: string): boolean {
   }
   if (stored.code !== code) return false;
 
-  // 验证成功后清除
   codeStore.delete(phone);
   return true;
 }
