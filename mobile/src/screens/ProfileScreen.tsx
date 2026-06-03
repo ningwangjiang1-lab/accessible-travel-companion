@@ -89,9 +89,27 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
       ],
     },
     {
+      title: '角色升级',
+      items: [
+        {
+          icon: '🤝',
+          label: user?.role === 'volunteer' || user?.role === 'professional'
+            ? '志愿者（已认证）'
+            : '申请成为志愿者',
+          screen: 'VolunteerCert',
+        },
+        {
+          icon: '💼',
+          label: user?.role === 'professional'
+            ? '专业陪护（已认证）'
+            : '申请专业陪护',
+          screen: 'ProfessionalCert',
+        },
+      ],
+    },
+    {
       items: [
         {icon: '📋', label: '行程历史', screen: 'TripHistory'},
-        {icon: '📜', label: '志愿者认证', screen: 'VolunteerCert'},
         {icon: '💳', label: '支付方式', screen: 'Payment'},
       ],
     },
@@ -105,6 +123,13 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
 
   /** 处理退出 */
   const handleLogout = () => {
+    const isWeb = typeof window !== 'undefined';
+    if (isWeb) {
+      if (window.confirm('确定要退出当前账号吗？')) {
+        logout();
+      }
+      return;
+    }
     Alert.alert('退出登录', '确定要退出当前账号吗？', [
       {text: '取消', style: 'cancel'},
       {
@@ -231,6 +256,7 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
                     if (item.screen) {
                       navigation.navigate(item.screen);
                     } else {
+                      if (typeof window !== 'undefined') { window.alert(`${item.label}功能将在后续版本中开放`); }
                       Alert.alert('提示', `${item.label}功能将在后续版本中开放`);
                     }
                   }}>

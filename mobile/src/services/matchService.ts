@@ -25,6 +25,8 @@ export interface MatchResult {
   trip_id: string;
   trip_status: string;
   candidates: CompanionCandidate[];
+  /** 已接受的陪行人（match_status === 'accepted' 的第一个） */
+  matched_companion?: CompanionCandidate;
 }
 
 /**

@@ -76,14 +76,31 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
 
   // ---- 提交 ----
   const handleSubmit = async () => {
+    const isWeb = typeof window !== 'undefined';
+
     if (!formRealName.trim()) {
+      if (isWeb) { window.alert('真实姓名不能为空'); }
       Alert.alert('请填写姓名', '真实姓名不能为空');
       return;
     }
 
+    // 身份证号必填
+    if (!formIdCard.trim()) {
+      if (isWeb) { window.alert('身份证号为必填项'); }
+      Alert.alert('请填写身份证号', '身份证号为必填项');
+      return;
+    }
+
     const idPattern = /^\d{17}[\dXx]$/;
-    if (formIdCard.trim() && !idPattern.test(formIdCard.trim())) {
+    if (!idPattern.test(formIdCard.trim())) {
+      if (isWeb) { window.alert('请输入正确的 18 位身份证号码'); }
       Alert.alert('身份证号错误', '请输入正确的 18 位身份证号码');
+      return;
+    }
+
+    if (!formTrainingDone) {
+      if (isWeb) { window.alert('请先完成基础培训课程'); }
+      Alert.alert('请完成培训', '需要先完成基础培训课程才能提交认证');
       return;
     }
 
@@ -91,16 +108,20 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
     try {
       await certService.submitCertification({
         real_name: formRealName.trim(),
-        id_card_number: formIdCard.trim() || undefined,
+        id_card_number: formIdCard.trim(),
         cert_type: selectedType,
         training_completed: formTrainingDone,
       });
 
-      Alert.alert('✅ 申请已提交', '我们将尽快审核您的认证申请', [
+      const successMsg = '我们将尽快审核您的认证申请，审核结果将在 3-5 个工作日内通知';
+      if (isWeb) { window.alert('✅ 申请已提交\n\n' + successMsg); }
+      Alert.alert('✅ 申请已提交', successMsg, [
         {text: '好的', onPress: () => loadCertification()},
       ]);
     } catch (err: any) {
-      Alert.alert('提交失败', err?.response?.data?.error || '请稍后重试');
+      const errMsg = err?.response?.data?.error || '请稍后重试';
+      if (isWeb) { window.alert('提交失败: ' + errMsg); }
+      Alert.alert('提交失败', errMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -340,10 +361,11 @@ const VolunteerCertScreen: React.FC<{navigation: any}> = ({navigation}) => {
           />
 
           <FormInput
-            label="身份证号（选填）"
+            label="身份证号 *"
             value={formIdCard}
             onChangeText={setFormIdCard}
             placeholder="18 位身份证号码"
+            required
             maxLength={18}
             keyboardType="default"
           />

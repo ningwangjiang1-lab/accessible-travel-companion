@@ -97,6 +97,12 @@ function calcAccessibilityScore(
     case 'cognitive':
       score += routeType === 'barrier_free' ? 12 : routeType === 'flat_only' ? 8 : routeType === 'standard' ? 5 : -2;
       break;
+    case 'elderly':
+      score += routeType === 'barrier_free' ? 10 : routeType === 'prefer_ramp' ? 8 : routeType === 'flat_only' ? 5 : 0;
+      break;
+    default:
+      // 'none' or unknown — no adjustment
+      break;
   }
 
   // 导航偏好对路线的影响

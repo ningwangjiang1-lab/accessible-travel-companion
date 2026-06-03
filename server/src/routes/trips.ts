@@ -5,9 +5,11 @@ import * as tripService from '../services/tripService';
 /**
  * Trips 路由（需认证）
  *
- * GET  /api/trips/active  — 获取当前用户的活跃行程
- * POST /api/trips          — 创建新行程
- * GET  /api/trips          — 获取用户行程列表
+ * GET  /api/trips/active     — 获取当前用户的活跃行程
+ * GET  /api/trips/available  — 获取可接单的行程列表（服务模式）
+ * POST /api/trips            — 创建新行程
+ * POST /api/trips/:id/accept — 志愿者接单
+ * GET  /api/trips            — 获取用户行程列表
  */
 
 export async function tripRoutes(app: FastifyInstance) {
@@ -28,6 +30,86 @@ export async function tripRoutes(app: FastifyInstance) {
         return reply.status(err.statusCode || 500).send({
           error: err.message,
         });
+      }
+    },
+  });
+
+  // ---- 获取可接单的行程列表（服务模式） ----
+  app.get('/trips/available', {
+    schema: {
+      description: '获取附近待接单的行程列表（供志愿者/专业陪护查看）',
+      tags: ['Trips'],
+      security: [{bearerAuth: []}],
+    },
+    handler: async (request, reply) => {
+      try {
+        const trips = await tripService.getAvailableTrips(request.user!.sub);
+        return reply.send(trips);
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send({error: err.message});
+      }
+    },
+  });
+
+  // ---- 取消行程 ----
+  app.post('/trips/:id/cancel', {
+    schema: {
+      description: '取消行程（仅 pending/matching/matched 状态可取消）',
+      tags: ['Trips'],
+      security: [{bearerAuth: []}],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {id: {type: 'string', description: '行程 ID'}},
+      },
+    },
+    handler: async (request, reply) => {
+      try {
+        const {id} = request.params as {id: string};
+        await tripService.cancelTrip(request.user!.sub, id);
+        return reply.send({success: true, message: '行程已取消'});
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send({error: err.message});
+      }
+    },
+  });
+
+  // ---- 志愿者接单 ----
+  app.post('/trips/:id/accept', {
+    schema: {
+      description: '志愿者/专业陪护接单',
+      tags: ['Trips'],
+      security: [{bearerAuth: []}],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {id: {type: 'string', description: '行程 ID'}},
+      },
+    },
+    handler: async (request, reply) => {
+      try {
+        const {id} = request.params as {id: string};
+        const result = await tripService.acceptTrip(request.user!.sub, id);
+        return reply.send(result);
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send({error: err.message});
+      }
+    },
+  });
+
+  // ---- 获取我接的单（服务模式） ----
+  app.get('/trips/accepted', {
+    schema: {
+      description: '获取当前用户作为陪护接单的行程列表',
+      tags: ['Trips'],
+      security: [{bearerAuth: []}],
+    },
+    handler: async (request, reply) => {
+      try {
+        const trips = await tripService.getMyAcceptedTrips(request.user!.sub);
+        return reply.send(trips);
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send({error: err.message});
       }
     },
   });

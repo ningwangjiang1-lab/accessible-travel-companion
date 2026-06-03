@@ -136,21 +136,14 @@ const PublishTripScreen: React.FC<{navigation: any; route: any}> = ({navigation}
         start_time: !isNow && startTime ? new Date(startTime).toISOString() : undefined,
       });
 
-      Alert.alert(
-        '✅ 行程发布成功',
-        `您的行程已发布，系统正在为您${companionType === 'volunteer' ? '匹配志愿者' : '寻找专业陪护'}...`,
-        [
-          {
-            text: '好的',
-            onPress: () => navigation.goBack(),
-          },
-        ],
-      );
+      // 发布成功后跳转到匹配页面（类似滴滴等待接单界面）
+      navigation.replace('Match', {tripId: result.id});
     } catch (err: any) {
-      Alert.alert(
-        '发布失败',
-        err?.response?.data?.error || err?.message || '请稍后重试',
-      );
+      const errMsg = err?.response?.data?.error || err?.message || '请稍后重试';
+      if (typeof window !== 'undefined') {
+        window.alert('发布失败: ' + errMsg);
+      }
+      Alert.alert('发布失败', errMsg);
     } finally {
       setIsSubmitting(false);
     }

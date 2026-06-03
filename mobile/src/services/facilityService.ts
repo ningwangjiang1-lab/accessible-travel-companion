@@ -47,6 +47,7 @@ export interface FacilityTypeInfo {
 }
 
 export interface FacilitySearchParams {
+  q?: string;
   facility_type?: FacilityType;
   lat?: number;
   lng?: number;

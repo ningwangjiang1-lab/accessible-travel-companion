@@ -35,6 +35,7 @@ export async function getUserById(userId: string): Promise<UserWithProfile> {
  */
 export interface UpdateProfileInput {
   name?: string;
+  user_type?: string;
   disability_type?: string;
   assistive_device?: string;
   nav_preference?: string;
@@ -47,7 +48,7 @@ export async function updateProfile(
   input: UpdateProfileInput,
 ): Promise<UserWithProfile> {
   // 更新 users 表
-  if (input.name !== undefined || input.avatar !== undefined) {
+  if (input.name !== undefined || input.avatar !== undefined || input.user_type !== undefined) {
     const updates: string[] = [];
     const params: any[] = [];
     let paramIndex = 1;
@@ -59,6 +60,10 @@ export async function updateProfile(
     if (input.avatar !== undefined) {
       updates.push(`avatar = $${paramIndex++}`);
       params.push(input.avatar);
+    }
+    if (input.user_type !== undefined) {
+      updates.push(`user_type = $${paramIndex++}`);
+      params.push(input.user_type);
     }
 
     if (updates.length > 0) {

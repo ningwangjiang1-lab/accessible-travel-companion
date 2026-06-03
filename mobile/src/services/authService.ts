@@ -12,12 +12,13 @@ export interface User {
   name: string | null;
   avatar: string | null;
   role: 'user' | 'volunteer' | 'professional' | 'admin';
+  user_type?: 'disabled' | 'non_disabled';
 }
 
 export interface DisabilityProfile {
-  disability_type: 'physical' | 'visual' | 'hearing' | 'cognitive';
+  disability_type: 'physical' | 'visual' | 'hearing' | 'cognitive' | 'elderly' | 'none';
   assistive_device: string | null;
-  nav_preference: 'avoid_overpass' | 'prefer_ramp' | 'flat_only' | 'barrier_free';
+  nav_preference: string;
   font_preference: 'standard' | 'large' | 'extra_large';
 }
 
@@ -31,6 +32,7 @@ export interface RegisterInput {
   phone: string;
   code: string;
   name?: string;
+  user_type?: string;
   disability_type?: string;
   assistive_device?: string;
   nav_preference?: string;

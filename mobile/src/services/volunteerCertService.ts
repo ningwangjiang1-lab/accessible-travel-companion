@@ -4,7 +4,7 @@ import api from './api';
  * Volunteer Certification Service — 封装志愿者认证 API
  */
 
-export type CertType = 'basic' | 'professional' | 'first_aid' | 'sign_language' | 'guide_dog_handler';
+export type CertType = 'basic'; // 初始基础培训，高级技能成为志愿者后追加
 export type CertStatus = 'pending' | 'approved' | 'rejected';
 
 export interface VolunteerCertification {
@@ -25,7 +25,7 @@ export interface VolunteerCertification {
 
 export interface SubmitCertInput {
   real_name: string;
-  id_card_number?: string;
+  id_card_number: string;
   cert_type: CertType;
   training_completed?: boolean;
 }

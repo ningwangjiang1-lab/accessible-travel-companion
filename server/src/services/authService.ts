@@ -1,4 +1,4 @@
-import {query} from '../db';
+import {query, pool} from '../db';
 import {generateToken, JwtPayload} from '../utils/jwt';
 import {User, DisabilityProfile, UserRole} from '../models';
 
@@ -63,6 +63,7 @@ export interface RegisterInput {
   phone: string;
   code: string;
   name?: string;
+  user_type?: string;
   disability_type?: string;
   assistive_device?: string;
   nav_preference?: string;
@@ -103,39 +104,50 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
     throw new AppError('该手机号已注册，请直接登录', 409);
   }
 
-  // 4. 创建用户
-  const userResult = await query<User>(
-    `INSERT INTO users (phone, name, role)
-     VALUES ($1, $2, 'user')
-     RETURNING *`,
-    [input.phone, input.name || null],
-  );
-  const user = userResult.rows[0];
+  // 4-5. 使用事务创建用户 + 残障画像（保证原子性）
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-  // 5. 创建残障画像
-  const profileResult = await query<DisabilityProfile>(
-    `INSERT INTO disability_profiles (user_id, disability_type, assistive_device, nav_preference, font_preference)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [
-      user.id,
-      input.disability_type || 'physical',
-      input.assistive_device || null,
-      input.nav_preference || 'barrier_free',
-      input.font_preference || 'standard',
-    ],
-  );
-  const profile = profileResult.rows[0];
+    const userResult = await client.query<User>(
+      `INSERT INTO users (phone, name, role, user_type)
+       VALUES ($1, $2, 'user', $3)
+       RETURNING *`,
+      [input.phone, input.name || null, input.user_type || 'disabled'],
+    );
+    const user = userResult.rows[0];
 
-  // 6. 生成 Token
-  const jwtPayload: JwtPayload = {
-    sub: user.id,
-    phone: user.phone,
-    role: user.role,
-  };
-  const token = generateToken(jwtPayload);
+    const profileResult = await client.query<DisabilityProfile>(
+      `INSERT INTO disability_profiles (user_id, disability_type, assistive_device, nav_preference, font_preference)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [
+        user.id,
+        input.disability_type || 'none',
+        input.assistive_device || null,
+        input.nav_preference || 'barrier_free',
+        input.font_preference || 'standard',
+      ],
+    );
+    const profile = profileResult.rows[0];
 
-  return {token, user, profile};
+    await client.query('COMMIT');
+
+    // 6. 生成 Token
+    const jwtPayload: JwtPayload = {
+      sub: user.id,
+      phone: user.phone,
+      role: user.role,
+    };
+    const token = generateToken(jwtPayload);
+
+    return {token, user, profile};
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**

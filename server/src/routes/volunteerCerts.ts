@@ -45,14 +45,14 @@ export async function volunteerCertRoutes(app: FastifyInstance) {
       security: [{bearerAuth: []}],
       body: {
         type: 'object',
-        required: ['real_name', 'cert_type'],
+        required: ['real_name', 'id_card_number', 'cert_type'],
         properties: {
           real_name: {type: 'string', description: '真实姓名'},
-          id_card_number: {type: 'string', description: '身份证号（18 位）'},
+          id_card_number: {type: 'string', description: '身份证号（18 位，必填）'},
           cert_type: {
             type: 'string',
-            enum: ['basic', 'professional', 'first_aid', 'sign_language', 'guide_dog_handler'],
-            description: '认证类型',
+            enum: ['basic'],
+            description: '认证类型（初始仅基础志愿者，高级技能在通过后追加）',
           },
           training_completed: {type: 'boolean', description: '是否已完成培训'},
         },

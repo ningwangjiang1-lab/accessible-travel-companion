@@ -148,18 +148,39 @@ export async function getNavigationData(
     ? [OBSTACLE_TEMPLATES[0], OBSTACLE_TEMPLATES[1]]
     : OBSTACLE_TEMPLATES; // 最短路径障碍最多
 
+  // 模拟路线坐标（从天安门到王府井）
+  const origin: [number, number] = [39.9087, 116.3975];
+  const destination: [number, number] = [39.9142, 116.4170];
+  const coordinates: [number, number][] = [
+    [39.9087, 116.3975],
+    [39.9095, 116.4000],
+    [39.9108, 116.4040],
+    [39.9115, 116.4075],
+    [39.9125, 116.4110],
+    [39.9135, 116.4145],
+    [39.9142, 116.4170],
+  ];
+
   return {
     route: {
       id: routeId,
       name: templateKey === 'barrier_free' ? '无障碍优先路线' : templateKey === 'standard' ? '标准路线' : '最短路线',
-      origin_address: '我的位置',
-      destination_address: '目的地',
+      origin_address: '天安门广场',
+      destination_address: '王府井地铁站',
       distance_display: '1.2km',
       duration_display: '15分钟',
       accessibility_score: templateKey === 'barrier_free' ? 92 : templateKey === 'standard' ? 78 : 71,
+      coordinates,
+      origin,
+      destination,
     },
     steps,
     obstacles,
-    companion: null, // 当前无陪行人，后续关联 companion_sessions
+    companion: {
+      name: '志愿者小王',
+      phone: '138****5678',
+      lat: 39.9115,
+      lon: 116.4060,
+    },
   };
 }

@@ -12,6 +12,9 @@ import * as authService from '../services/authService';
  * - 加载中：isLoading=true（App 启动时检查 token）
  */
 
+/** 使用模式：出行（叫服务）/ 服务（接单） */
+export type AppMode = 'passenger' | 'service';
+
 export interface AuthState {
   // ---- 状态 ----
   user: authService.User | null;
@@ -19,20 +22,18 @@ export interface AuthState {
   token: string | null;
   isLoggedIn: boolean;
   isLoading: boolean;
+  /** 当前使用模式 */
+  mode: AppMode;
 
   // ---- 操作 ----
-  /** 注册 */
   register: (input: authService.RegisterInput) => Promise<void>;
-  /** 登录 */
   login: (phone: string, code: string) => Promise<void>;
-  /** 发送验证码 */
   sendCode: (phone: string) => Promise<void>;
-  /** 登出 */
   logout: () => Promise<void>;
-  /** 恢复登录态（App 启动时调用） */
   restoreSession: () => Promise<void>;
-  /** 更新用户画像 */
   updateProfile: (input: Partial<authService.RegisterInput>) => Promise<void>;
+  /** 切换出行/服务模式 */
+  switchMode: (mode: AppMode) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -41,6 +42,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   isLoggedIn: false,
   isLoading: true,
+  mode: 'passenger',
 
   sendCode: async (phone: string) => {
     await authService.sendVerificationCode(phone);
@@ -107,5 +109,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   updateProfile: async (input: Partial<authService.RegisterInput>) => {
     const {user, profile} = await authService.updateProfile(input);
     set({user, profile});
+  },
+
+  switchMode: (mode: AppMode) => {
+    set({mode});
   },
 }));

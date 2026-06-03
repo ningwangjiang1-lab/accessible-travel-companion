@@ -5,6 +5,7 @@ import * as sessionService from '../services/sessionService';
 /**
  * Sessions 路由（需认证）
  *
+ * POST  /api/sessions/start            — 开始陪行（从已匹配行程创建会话）
  * GET   /api/sessions/active           — 获取当前活跃的陪行会话
  * GET   /api/sessions/:sessionId        — 获取单个会话详情
  * PATCH /api/sessions/:sessionId/status — 更新会话状态（暂停/恢复/结束/紧急结束）
@@ -16,6 +17,31 @@ interface StatusBody {
 
 export async function sessionRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authMiddleware);
+
+  // ---- 开始陪行 ----
+  app.post('/sessions/start', {
+    schema: {
+      description: '志愿者点击"开始陪行"，从已匹配的行程创建陪行会话',
+      tags: ['Sessions'],
+      security: [{bearerAuth: []}],
+      body: {
+        type: 'object',
+        required: ['trip_id'],
+        properties: {
+          trip_id: {type: 'string', description: '已匹配的行程 ID'},
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      try {
+        const {trip_id} = request.body as {trip_id: string};
+        const session = await sessionService.startSession(request.user!.sub, trip_id);
+        return reply.status(201).send(session);
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send({error: err.message});
+      }
+    },
+  });
 
   // ---- 获取当前活跃会话 ----
   app.get('/sessions/active', {

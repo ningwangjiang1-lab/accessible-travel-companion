@@ -31,13 +31,33 @@ export interface MatchResult {
   candidates: CompanionCandidate[];
 }
 
+// ---- 固定 UUID（合法 UUID 格式，用于 mock 陪行人） ----
+const COMP_001_UUID = 'a0000001-0001-0001-0001-000000000001';
+const COMP_002_UUID = 'a0000001-0001-0001-0001-000000000002';
+const COMP_003_UUID = 'a0000001-0001-0001-0001-000000000003';
+const PRO_001_UUID  = 'b0000001-0001-0001-0001-000000000001';
+const PRO_002_UUID  = 'b0000001-0001-0001-0001-000000000002';
+
 // ---- 模拟陪行人数据库 ----
 
-const MOCK_COMPANIONS: Omit<CompanionCandidate, 'match_id' | 'match_status' | 'match_score' | 'route_overlap'>[] = [
+interface MockCompanionBase {
+  id: string;
+  phone: string;
+  name: string;
+  role: 'volunteer' | 'professional';
+  distance_meters: number;
+  rating: number;
+  completed_trips: number;
+  certifications: string[];
+  tags: string[];
+  hourly_rate_cents: number | null;
+}
+
+const MOCK_COMPANION_DEFS: MockCompanionBase[] = [
   {
-    id: 'comp_001',
+    id: COMP_001_UUID,
+    phone: '138****6789',
     name: '李国华',
-    avatar: null,
     role: 'volunteer',
     distance_meters: 350,
     rating: 4.8,
@@ -47,9 +67,9 @@ const MOCK_COMPANIONS: Omit<CompanionCandidate, 'match_id' | 'match_status' | 'm
     hourly_rate_cents: null,
   },
   {
-    id: 'comp_002',
+    id: COMP_002_UUID,
+    phone: '139****7890',
     name: '王晓芳',
-    avatar: null,
     role: 'volunteer',
     distance_meters: 620,
     rating: 4.9,
@@ -59,9 +79,9 @@ const MOCK_COMPANIONS: Omit<CompanionCandidate, 'match_id' | 'match_status' | 'm
     hourly_rate_cents: null,
   },
   {
-    id: 'comp_003',
+    id: COMP_003_UUID,
+    phone: '137****5678',
     name: '张永强',
-    avatar: null,
     role: 'volunteer',
     distance_meters: 800,
     rating: 4.6,
@@ -71,9 +91,9 @@ const MOCK_COMPANIONS: Omit<CompanionCandidate, 'match_id' | 'match_status' | 'm
     hourly_rate_cents: null,
   },
   {
-    id: 'pro_001',
+    id: PRO_001_UUID,
+    phone: '136****4567',
     name: '陈主任',
-    avatar: null,
     role: 'professional',
     distance_meters: 500,
     rating: 4.9,
@@ -83,9 +103,9 @@ const MOCK_COMPANIONS: Omit<CompanionCandidate, 'match_id' | 'match_status' | 'm
     hourly_rate_cents: 8000,
   },
   {
-    id: 'pro_002',
+    id: PRO_002_UUID,
+    phone: '135****3456',
     name: '刘护工',
-    avatar: null,
     role: 'professional',
     distance_meters: 420,
     rating: 4.7,
@@ -96,6 +116,39 @@ const MOCK_COMPANIONS: Omit<CompanionCandidate, 'match_id' | 'match_status' | 'm
   },
 ];
 
+// 全局缓存
+let _companionsEnsured = false;
+
+/**
+ * 确保 mock 陪行人已存入 users 表
+ */
+async function ensureCompanionUsers(): Promise<void> {
+  if (_companionsEnsured) return;
+  for (const comp of MOCK_COMPANION_DEFS) {
+    await query(
+      `INSERT INTO users (id, phone, name, role)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET name = $3, role = $4`,
+      [comp.id, comp.phone, comp.name, comp.role],
+    );
+  }
+  _companionsEnsured = true;
+}
+
+const MOCK_COMPANIONS: Omit<CompanionCandidate, 'match_id' | 'match_status' | 'match_score' | 'route_overlap'>[] =
+  MOCK_COMPANION_DEFS.map(c => ({
+    id: c.id,
+    name: c.name,
+    avatar: null,
+    role: c.role,
+    distance_meters: c.distance_meters,
+    rating: c.rating,
+    completed_trips: c.completed_trips,
+    certifications: c.certifications,
+    tags: c.tags,
+    hourly_rate_cents: c.hourly_rate_cents,
+  }));
+
 /**
  * 获取行程的匹配列表
  *
@@ -105,6 +158,9 @@ export async function getMatchesForTrip(
   tripId: string,
   userId: string,
 ): Promise<MatchResult> {
+  // 确保 mock 陪行人用户存在
+  await ensureCompanionUsers();
+
   // 验证行程归属
   const tripResult = await query(
     'SELECT * FROM trips WHERE id = $1 AND user_id = $2',

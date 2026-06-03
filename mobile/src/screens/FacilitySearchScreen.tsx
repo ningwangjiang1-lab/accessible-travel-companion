@@ -28,8 +28,9 @@ import Divider from '../components/Divider/Divider';
  * 依赖：Step 3 组件库、facilityService
  */
 
-const FacilitySearchScreen: React.FC<{navigation: any}> = ({navigation}) => {
+const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigation, route}) => {
   const {colors, fontSize, fontWeight, spacing, borderRadius} = useTheme();
+  const initialQuery = route?.params?.query || '';
 
   // ---- 列表 ----
   const [facilities, setFacilities] = useState<FacilitySummary[]>([]);
@@ -37,6 +38,9 @@ const FacilitySearchScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // ---- 搜索 ----
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
 
   // ---- 筛选 ----
   const [types, setTypes] = useState<facilityService.FacilityTypeInfo[]>([]);
@@ -58,6 +62,7 @@ const FacilitySearchScreen: React.FC<{navigation: any}> = ({navigation}) => {
     setErrorMsg('');
     try {
       const result = await facilityService.searchFacilities({
+        q: searchQuery || undefined,
         facility_type: selectedType || undefined,
         lat: 39.908,
         lng: 116.397,
@@ -70,7 +75,7 @@ const FacilitySearchScreen: React.FC<{navigation: any}> = ({navigation}) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedType, selectedRadius]);
+  }, [selectedType, selectedRadius, searchQuery]);
 
   useEffect(() => {
     loadFacilities();

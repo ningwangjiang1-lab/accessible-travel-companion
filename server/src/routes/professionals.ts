@@ -5,9 +5,10 @@ import * as professionalService from '../services/professionalService';
 /**
  * Professionals 路由（需认证）
  *
- * GET /api/professionals           — 专业陪护人员列表（支持筛选/排序/分页）
- * GET /api/professionals/filters   — 获取可用的专长筛选标签
- * GET /api/professionals/:id       — 专业人员详情
+ * GET  /api/professionals           — 专业陪护人员列表（支持筛选/排序/分页）
+ * GET  /api/professionals/filters   — 获取可用的专长筛选标签
+ * GET  /api/professionals/:id       — 专业人员详情
+ * POST /api/professional-certs      — 提交专业陪护认证申请
  */
 
 export async function professionalRoutes(app: FastifyInstance) {
@@ -89,6 +90,62 @@ export async function professionalRoutes(app: FastifyInstance) {
         const {id} = request.params as {id: string};
         const detail = await professionalService.getProfessionalById(id);
         return reply.send(detail);
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send({error: err.message});
+      }
+    },
+  });
+
+  // ---- 提交专业陪护认证申请 ----
+  app.post('/professional-certs', {
+    schema: {
+      description: '提交专业陪护资质认证申请',
+      tags: ['Professionals'],
+      security: [{bearerAuth: []}],
+      body: {
+        type: 'object',
+        required: ['cert_name', 'issuing_body', 'specialties'],
+        properties: {
+          cert_name: {type: 'string', description: '资质证书名称'},
+          cert_number: {type: 'string', description: '证书编号（选填）'},
+          issuing_body: {type: 'string', description: '发证机构'},
+          specialties: {
+            type: 'array',
+            items: {type: 'string'},
+            description: '专业特长（数组）',
+          },
+          hourly_rate_cents: {type: 'integer', description: '时薪（分）'},
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      try {
+        const body = request.body as any;
+        const {query} = await import('../db');
+        // 开发环境自动审核通过
+        const status = process.env.NODE_ENV === 'production' ? 'pending' : 'approved';
+        const result = await query(
+          `INSERT INTO professional_certifications (user_id, cert_name, cert_number, issuing_body, specialties, hourly_rate_cents, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING *`,
+          [
+            request.user!.sub,
+            body.cert_name,
+            body.cert_number || null,
+            body.issuing_body,
+            body.specialties,
+            body.hourly_rate_cents || null,
+            status,
+          ],
+        );
+        // 开发环境自动升级用户角色为 professional
+        if (status === 'approved') {
+          await query(
+            `UPDATE users SET role = 'professional' WHERE id = $1 AND role IN ('user', 'volunteer')`,
+            [request.user!.sub],
+          );
+        }
+        return reply.status(201).send(result.rows[0]);
       } catch (err: any) {
         return reply.status(err.statusCode || 500).send({error: err.message});
       }

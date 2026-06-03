@@ -14,6 +14,7 @@ import type {NavigationData, NavigationStep, ObstacleWarning} from '../services/
 import ProgressBar from '../components/ProgressBar/ProgressBar';
 import Badge from '../components/Badge/Badge';
 import Button from '../components/Button/Button';
+import MapView from '../components/MapView/MapView';
 
 /**
  * NavigationScreen — 实时导航页
@@ -182,52 +183,33 @@ const NavigationScreen: React.FC<{route: any; navigation: any}> = ({route: route
       </View>
 
       {/* ============================================================ */}
-      {/* 2. 模拟地图区 */}
+      {/* 2. 实时地图 */}
       {/* ============================================================ */}
-      <View style={[styles.mapArea, {backgroundColor: '#E8F1FB'}]}>
-        {/* 路线概览 */}
-        <View style={styles.mapRoute}>
-          {/* 起点 */}
-          <View style={styles.mapPoint}>
-            <View style={[styles.mapDot, {backgroundColor: colors.success}]} />
-            <Text style={[styles.mapLabel, {color: colors.textSecondary, fontSize: fontSize.xs}]}>
-              {navData.route.origin_address}
-            </Text>
-          </View>
+      <MapView
+        center={navData.route.origin}
+        zoom={14}
+        markers={[
+          {lat: navData.route.origin[0], lon: navData.route.origin[1], label: '起点', color: '#10B981'},
+          {lat: navData.route.destination[0], lon: navData.route.destination[1], label: '终点', color: '#EF4444'},
+        ]}
+        route={navData.route.coordinates}
+        currentPosition={navData.route.coordinates ? navData.route.coordinates[Math.min(currentStepIndex, navData.route.coordinates.length - 1)] : undefined}
+        height={260}
+      />
 
-          {/* 路线进度线 */}
-          <View style={styles.mapProgressArea}>
-            <ProgressBar
-              progress={navigationProgress}
-              height={4}
-              gradientColors={[colors.success, colors.primary, colors.secondary]}
-              style={{marginVertical: spacing.sm}}
-            />
-            {/* 当前位置脉冲标记 */}
-            <Animated.View
-              style={[
-                styles.currentDot,
-                {
-                  left: `${navigationProgress * 100}%`,
-                  backgroundColor: colors.primary,
-                  transform: [{scale: pulseAnim}],
-                },
-              ]}
-            />
-          </View>
-
-          {/* 终点 */}
-          <View style={styles.mapPoint}>
-            <View style={[styles.mapDot, {backgroundColor: colors.danger}]} />
-            <Text style={[styles.mapLabel, {color: colors.textSecondary, fontSize: fontSize.xs}]}>
-              {navData.route.destination_address}
-            </Text>
-          </View>
+      {/* 路线进度条 */}
+      <View style={{paddingHorizontal: 20, paddingVertical: 12, backgroundColor: colors.surface}}>
+        <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4}}>
+          <Text style={{color: colors.textSecondary, fontSize: fontSize.xs}}>{navData.route.origin_address}</Text>
+          <Text style={{color: colors.textSecondary, fontSize: fontSize.xs}}>{navData.route.destination_address}</Text>
         </View>
-
-        {/* 模拟地图背景提示 */}
-        <Text style={[styles.mapHint, {color: colors.textTertiary, fontSize: fontSize['3xs']}]}>
-          📍 GPS 定位中 · 模拟导航
+        <ProgressBar
+          progress={navigationProgress}
+          height={6}
+          gradientColors={[colors.success, colors.primary]}
+        />
+        <Text style={{color: colors.textTertiary, fontSize: fontSize['3xs'], textAlign: 'center', marginTop: 4}}>
+          📍 GPS 实时导航中 · 已完成 {Math.round(navigationProgress * 100)}%
         </Text>
       </View>
 

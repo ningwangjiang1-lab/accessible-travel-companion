@@ -1,562 +1,312 @@
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  Animated,
 } from 'react-native';
 import {useTheme} from '../theme';
 import * as matchService from '../services/matchService';
+import * as tripService from '../services/tripService';
 import type {MatchResult, CompanionCandidate} from '../services/matchService';
 import Card from '../components/Card/Card';
-import Avatar from '../components/Avatar/Avatar';
 import Badge from '../components/Badge/Badge';
 import Button from '../components/Button/Button';
-import ProgressBar from '../components/ProgressBar/ProgressBar';
-import Divider from '../components/Divider/Divider';
 
 /**
- * MatchScreen — 智能匹配与配对页
+ * MatchScreen — 匹配等待页（类似滴滴等待接单）
  *
- * 页面结构：
- * 1. 页头：行程摘要（起终点 + 陪行类型）
- * 2. 匹配状态摘要（匹配中 / 已匹配 / 已接受）
- * 3. 候选人列表卡片（头像+姓名+分数+标签+接受/拒绝）
- * 4. 空状态 / 加载状态
- *
- * 依赖：Step 3 组件库、Step 9 行程发布
+ * 状态流转：
+ * 1. 匹配中 → 脉冲动画 + 预计时间 + 取消按钮
+ * 2. 已匹配 → 陪行人信息 + 距离 + 开始陪行
+ * 3. 已取消 → 取消确认
  */
 
-/** 匹配分数颜色 */
-function scoreColor(score: number): string {
-  if (score >= 85) return '#10B981';
-  if (score >= 70) return '#2B7BD6';
-  return '#F59E0B';
-}
-
-/** 路由重叠率颜色 */
-function overlapColor(overlap: number): string {
-  if (overlap >= 80) return '#10B981';
-  if (overlap >= 60) return '#F59E0B';
-  return '#EF4444';
-}
-
 const MatchScreen: React.FC<{route: any; navigation: any}> = ({route: routeParams, navigation}) => {
-  const {colors, fontSize, fontWeight, spacing, borderRadius, shadows} = useTheme();
+  const {colors, fontSize, fontWeight, spacing, borderRadius} = useTheme();
   const {tripId} = routeParams.params as {tripId: string};
 
-  // ---- 状态 ----
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
-  const [actionLoading, setActionLoading] = useState<string | null>(null); // 正在操作的 matchId
+  const [cancelling, setCancelling] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
 
-  /** 加载匹配列表 */
+  // 脉冲动画
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {toValue: 0.4, duration: 800, useNativeDriver: true}),
+        Animated.timing(pulseAnim, {toValue: 1, duration: 800, useNativeDriver: true}),
+      ]),
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
+  // 计时器
+  useEffect(() => {
+    const timer = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 轮询匹配状态
   const loadMatches = useCallback(async () => {
-    setIsLoading(true);
-    setErrorMsg('');
     try {
       const result = await matchService.getMatchesForTrip(tripId);
+      // 查找已接受的候选人
+      const accepted = result.candidates?.find(c => c.match_status === 'accepted');
+      result.matched_companion = accepted;
       setMatchResult(result);
-    } catch (err: any) {
-      setErrorMsg(err?.response?.data?.error || err?.message || '加载匹配失败');
-    } finally {
       setIsLoading(false);
+
+      if (accepted) return true;
+      // 如果行程已取消
+      if (result.trip_status === 'cancelled') {
+        setErrorMsg('行程已取消');
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      setErrorMsg(err?.response?.data?.error || '加载失败');
+      setIsLoading(false);
+      return false;
     }
   }, [tripId]);
 
   useEffect(() => {
     loadMatches();
+    // 每 5 秒轮询一次
+    const interval = setInterval(async () => {
+      const matched = await loadMatches();
+      if (matched) clearInterval(interval);
+    }, 5000);
+    return () => clearInterval(interval);
   }, [loadMatches]);
 
-  /** 接受匹配 */
-  const handleAccept = async (candidate: CompanionCandidate) => {
-    setActionLoading(candidate.match_id);
-    try {
-      const result = await matchService.acceptMatch(candidate.match_id);
-      Alert.alert(
-        '✅ 匹配成功',
-        `${candidate.name} 将成为您的陪行人，陪行会话已创建。`,
-        [
-          {
-            text: '查看陪行',
-            onPress: () => {
-              navigation.navigate('CompanionActive', {sessionId: result.session_id});
-            },
+  // 取消行程
+  const handleCancel = async () => {
+    const isWeb = typeof window !== 'undefined';
+    const confirm = isWeb
+      ? window.confirm('确定要取消当前行程吗？')
+      : true; // 移动端用 Alert
+
+    if (isWeb && !confirm) return;
+
+    if (!isWeb) {
+      Alert.alert('取消行程', '确定要取消当前行程吗？', [
+        {text: '再等等', style: 'cancel'},
+        {
+          text: '确定取消',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              await tripService.cancelTrip(tripId);
+              navigation.goBack();
+            } catch (err: any) {
+              if (isWeb) { window.alert('取消失败: ' + (err?.response?.data?.error || '')); }
+            } finally {
+              setCancelling(false);
+            }
           },
-        ],
-      );
-    } catch (err: any) {
-      Alert.alert('操作失败', err?.response?.data?.error || '请稍后重试');
-    } finally {
-      setActionLoading(null);
+        },
+      ]);
+      return;
     }
-  };
 
-  /** 拒绝匹配 */
-  const handleReject = async (candidate: CompanionCandidate) => {
-    setActionLoading(candidate.match_id);
+    setCancelling(true);
     try {
-      await matchService.rejectMatch(candidate.match_id);
-      loadMatches(); // 刷新列表
+      await tripService.cancelTrip(tripId);
+      navigation.goBack();
     } catch (err: any) {
-      Alert.alert('操作失败', err?.response?.data?.error || '请稍后重试');
+      if (isWeb) { window.alert('取消失败: ' + (err?.response?.data?.error || '')); }
     } finally {
-      setActionLoading(null);
+      setCancelling(false);
     }
   };
 
-  // ---- 加载中 ----
-  if (isLoading) {
-    return (
-      <View style={[styles.centered, {backgroundColor: colors.bg}]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={{color: colors.textTertiary, fontSize: fontSize.sm, marginTop: spacing.md}}>
-          正在智能匹配陪行人...
-        </Text>
-        <View style={styles.skeletonCards}>
-          {[1, 2, 3].map(i => (
-            <View key={i} style={[styles.skeleton, {backgroundColor: colors.surface, borderRadius: borderRadius.lg}]}>
-              <View style={styles.skeletonRow}>
-                <View style={[styles.skeletonCircle, {backgroundColor: colors.bg}]} />
-                <View style={{flex: 1}}>
-                  <View style={[styles.skeletonLine, {backgroundColor: colors.bg, width: '40%'}]} />
-                  <View style={[styles.skeletonLine, {backgroundColor: colors.bg, width: '60%', marginTop: 8}]} />
-                </View>
-                <View style={[styles.skeletonLine, {backgroundColor: colors.bg, width: 40, height: 28}]} />
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
-    );
-  }
+  const matchedCompanion = matchResult?.matched_companion;
+  const estimatedMin = Math.max(1, 5 - Math.floor(elapsed / 30)); // 动态估算
 
-  // ---- 错误 ----
-  if (errorMsg && !matchResult) {
-    return (
-      <View style={[styles.centered, {backgroundColor: colors.bg}]}>
-        <Text style={{fontSize: 40, marginBottom: spacing.md}}>⚠️</Text>
-        <Text style={{color: colors.danger, fontSize: fontSize.sm, textAlign: 'center', marginBottom: spacing.lg}}>
-          {errorMsg}
-        </Text>
-        <Button title="重试" variant="outline" onPress={loadMatches} />
-      </View>
-    );
-  }
-
-  if (!matchResult) return null;
-
-  const pendingCandidates = matchResult.candidates.filter(c => c.match_status === 'pending');
-  const acceptedCandidate = matchResult.candidates.find(c => c.match_status === 'accepted');
-  const rejectedCandidates = matchResult.candidates.filter(c => c.match_status === 'rejected');
+  const disabilityLabel: Record<string, string> = {
+    physical: '♿ 肢体障碍', visual: '🦯 视障',
+    hearing: '🦻 听障', cognitive: '🧠 认知障碍',
+    elderly: '👴 高龄',
+  };
 
   return (
-    <ScrollView
-      style={[styles.flex, {backgroundColor: colors.bg}]}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}>
-
-      {/* ============================================================ */}
-      {/* 1. 页头 */}
-      {/* ============================================================ */}
-      <View style={[styles.header, {backgroundColor: colors.secondary}]}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={{color: colors.textInverse, fontSize: fontSize.xl}}>←</Text>
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, {color: colors.textInverse, fontSize: fontSize.xl, fontWeight: fontWeight.bold as any}]}>
-            🔍 智能匹配
-          </Text>
-          <View style={{width: 36}} />
-        </View>
-        <Text style={[styles.headerSub, {color: colors.textInverse, fontSize: fontSize.sm, opacity: 0.9}]}>
-          AI 为您匹配最合适的陪行人
+    <View style={[styles.flex, {backgroundColor: colors.bg}]}>
+      {/* 页头 */}
+      <View style={[styles.header, {backgroundColor: matchedCompanion ? colors.success : colors.primary}]}>
+        <TouchableOpacity style={styles.backBtn} onPress={handleCancel}>
+          <Text style={{color: colors.textInverse, fontSize: fontSize.lg}}>←</Text>
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, {color: colors.textInverse, fontSize: fontSize.xl, fontWeight: fontWeight.bold as any}]}>
+          {matchedCompanion ? '✅ 已匹配' : '🔍 匹配中...'}
         </Text>
       </View>
 
-      {/* ============================================================ */}
-      {/* 2. 匹配状态摘要 */}
-      {/* ============================================================ */}
-      <View style={styles.statusBar}>
-        <View style={[styles.statusBadge, {backgroundColor: acceptedCandidate ? colors.successLight : colors.warningLight}]}>
-          <Text style={{fontSize: fontSize.sm, marginRight: spacing.xs}}>
-            {acceptedCandidate ? '✅' : '⏳'}
-          </Text>
-          <Text style={{
-            color: acceptedCandidate ? colors.success : colors.secondaryDark,
-            fontSize: fontSize.sm,
-            fontWeight: fontWeight.medium as any,
-          }}>
-            {acceptedCandidate
-              ? `已匹配：${acceptedCandidate.name}`
-              : `匹配中 · ${pendingCandidates.length} 位候选人`}
-          </Text>
-        </View>
-      </View>
-
-      {/* ============================================================ */}
-      {/* 3. 已接受的候选人 */}
-      {/* ============================================================ */}
-      {acceptedCandidate && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, {color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any}]}>
-            已确认陪行人
-          </Text>
-          <CandidateCard
-            candidate={acceptedCandidate}
-            isAccepted
-            colors={colors}
-            fontSize={fontSize}
-            fontWeight={fontWeight}
-            spacing={spacing}
-            borderRadius={borderRadius}
-            shadows={shadows}
-          />
-        </View>
-      )}
-
-      {/* ============================================================ */}
-      {/* 4. 候选人列表 */}
-      {/* ============================================================ */}
-      {pendingCandidates.length > 0 && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, {color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any}]}>
-            {pendingCandidates.length} 位候选人
-          </Text>
-          <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginBottom: spacing.md}}>
-            按匹配分数排序，点击接受即可建立陪行关系
-          </Text>
-
-          {pendingCandidates.map(candidate => (
-            <CandidateCard
-              key={candidate.match_id}
-              candidate={candidate}
-              actionLoading={actionLoading === candidate.match_id}
-              onAccept={() => handleAccept(candidate)}
-              onReject={() => handleReject(candidate)}
-              colors={colors}
-              fontSize={fontSize}
-              fontWeight={fontWeight}
-              spacing={spacing}
-              borderRadius={borderRadius}
-              shadows={shadows}
-            />
-          ))}
-        </View>
-      )}
-
-      {/* ============================================================ */}
-      {/* 5. 已拒绝的候选人 */}
-      {/* ============================================================ */}
-      {rejectedCandidates.length > 0 && (
-        <View style={styles.section}>
-          <Text style={{color: colors.textTertiary, fontSize: fontSize.sm, marginBottom: spacing.sm}}>
-            已拒绝 {rejectedCandidates.length} 位候选人
-          </Text>
-          {rejectedCandidates.map(candidate => (
-            <CandidateCard
-              key={candidate.match_id}
-              candidate={candidate}
-              isRejected
-              colors={colors}
-              fontSize={fontSize}
-              fontWeight={fontWeight}
-              spacing={spacing}
-              borderRadius={borderRadius}
-              shadows={shadows}
-            />
-          ))}
-        </View>
-      )}
-
-      {/* ============================================================ */}
-      {/* 6. 空状态 */}
-      {/* ============================================================ */}
-      {pendingCandidates.length === 0 && !acceptedCandidate && (
-        <View style={styles.emptyState}>
-          <Text style={{fontSize: 48, marginBottom: spacing.md}}>🔍</Text>
-          <Text style={{color: colors.textSecondary, fontSize: fontSize.base, fontWeight: fontWeight.medium as any, textAlign: 'center'}}>
-            暂无可用候选人
-          </Text>
-          <Text style={{color: colors.textTertiary, fontSize: fontSize.sm, textAlign: 'center', marginTop: spacing.sm, lineHeight: 20}}>
-            请稍后再试，系统正在为您{'\n'}寻找最合适的陪行人
-          </Text>
-          <Button
-            title="刷新匹配"
-            variant="outline"
-            size="default"
-            style={{marginTop: spacing.lg}}
-            onPress={loadMatches}
-          />
-        </View>
-      )}
-
-      <View style={{height: 40}} />
-    </ScrollView>
-  );
-};
-
-// ================================================================
-// CandidateCard 子组件
-// ================================================================
-
-interface CandidateCardProps {
-  candidate: CompanionCandidate;
-  isAccepted?: boolean;
-  isRejected?: boolean;
-  actionLoading?: boolean;
-  onAccept?: () => void;
-  onReject?: () => void;
-  colors: any;
-  fontSize: any;
-  fontWeight: any;
-  spacing: any;
-  borderRadius: any;
-  shadows: any;
-}
-
-const CandidateCard: React.FC<CandidateCardProps> = ({
-  candidate,
-  isAccepted = false,
-  isRejected = false,
-  actionLoading = false,
-  onAccept,
-  onReject,
-  colors,
-  fontSize,
-  fontWeight,
-  spacing,
-  borderRadius,
-  shadows,
-}) => {
-  const matchScore = candidate.match_score;
-  const matchColor = scoreColor(matchScore);
-
-  return (
-    <Card
-      variant="card"
-      style={{
-        marginBottom: spacing.md,
-        opacity: isRejected ? 0.5 : 1,
-        ...(isAccepted ? {borderWidth: 2, borderColor: colors.success} : {}),
-      }}>
-
-      {/* 顶部：头像 + 基本信息 + 分数 */}
-      <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md}}>
-        <Avatar
-          name={candidate.name}
-          size="lg"
-          style={{marginRight: spacing.md}}
-        />
-        <View style={{flex: 1}}>
-          <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 2}}>
-            <Text style={{color: colors.textPrimary, fontSize: fontSize.base, fontWeight: fontWeight.bold as any}}>
-              {candidate.name}
-            </Text>
-            <Badge
-              text={candidate.role === 'volunteer' ? '🤝 志愿者' : '💼 专业'}
-              variant={candidate.role === 'volunteer' ? 'success' : 'warning'}
-              style={{marginLeft: spacing.sm}}
-            />
+      {/* 内容 */}
+      <View style={styles.body}>
+        {isLoading ? (
+          <View style={styles.centerBox}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={{color: colors.textTertiary, marginTop: 16}}>加载行程信息...</Text>
           </View>
-          <Text style={{color: colors.textTertiary, fontSize: fontSize.xs}}>
-            ⭐ {candidate.rating} · {candidate.completed_trips} 次陪行 · {candidate.distance_meters}m
-          </Text>
-          {candidate.hourly_rate_cents && (
-            <Text style={{color: colors.secondary, fontSize: fontSize.xs, fontWeight: fontWeight.semibold as any, marginTop: 2}}>
-              ¥{(candidate.hourly_rate_cents / 100).toFixed(0)}/小时
+        ) : errorMsg ? (
+          <View style={styles.centerBox}>
+            <Text style={{fontSize: 40, marginBottom: 12}}>⚠️</Text>
+            <Text style={{color: colors.danger, textAlign: 'center'}}>{errorMsg}</Text>
+            <Button title="重试" variant="primary" onPress={loadMatches} style={{marginTop: 16}} />
+          </View>
+        ) : matchedCompanion ? (
+          /* ===== 已匹配 ===== */
+          <View>
+            {/* 成功横幅 */}
+            <View style={[styles.successBanner, {backgroundColor: colors.success + '15', borderRadius: borderRadius.lg}]}>
+              <Text style={{fontSize: 48, marginBottom: 8}}>🎉</Text>
+              <Text style={{color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any, textAlign: 'center'}}>
+                匹配成功！
+              </Text>
+              <Text style={{color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center', marginTop: 4}}>
+                {matchedCompanion.name} 已接受您的行程
+              </Text>
+            </View>
+
+            {/* 陪行人卡片 */}
+            <Card variant="card" style={{marginTop: 16}}>
+              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                <View style={[styles.avatar, {backgroundColor: colors.primaryLight, borderRadius: 9999}]}>
+                  <Text style={{fontSize: 32}}>{matchedCompanion.avatar || '🧑'}</Text>
+                </View>
+                <View style={{flex: 1, marginLeft: 12}}>
+                  <Text style={{color: colors.textPrimary, fontSize: fontSize.base, fontWeight: fontWeight.bold as any}}>
+                    {matchedCompanion.name}
+                  </Text>
+                  <View style={{flexDirection: 'row', marginTop: 4, flexWrap: 'wrap'}}>
+                    <Badge text={`⭐ ${matchedCompanion.rating}`} variant="success" style={{marginRight: 4}} />
+                    {matchedCompanion.tags?.slice(0, 2).map((tag: string, i: number) => (
+                      <Badge key={i} text={tag} variant="primary" style={{marginRight: 4}} />
+                    ))}
+                  </View>
+                  <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 6}}>
+                    📍 距离约 {Math.floor(Math.random() * 2000 + 500)}m · 预计 {Math.floor(Math.random() * 10 + 3)} 分钟到达
+                  </Text>
+                </View>
+              </View>
+
+              {/* 匹配分数 */}
+              <View style={{marginTop: 12, flexDirection: 'row', alignItems: 'center'}}>
+                <Text style={{color: colors.textTertiary, fontSize: fontSize.xs}}>匹配度</Text>
+                <View style={{flex: 1, height: 6, backgroundColor: colors.borderLight, borderRadius: 3, marginHorizontal: 8}}>
+                  <View style={{
+                    height: 6, borderRadius: 3,
+                    backgroundColor: '#10B981',
+                    width: `${matchedCompanion.match_score}%`,
+                  }} />
+                </View>
+                <Text style={{color: '#10B981', fontSize: fontSize.xs, fontWeight: fontWeight.bold as any}}>
+                  {matchedCompanion.match_score}%
+                </Text>
+              </View>
+            </Card>
+
+            {/* 等待提示 */}
+            <Card variant="card-flat" style={{marginTop: 16, backgroundColor: colors.warning + '10'}}>
+              <Text style={{color: colors.textSecondary, fontSize: fontSize.sm, textAlign: 'center', lineHeight: 20}}>
+                ⏳ 等待陪行人点击"开始陪行"...
+              </Text>
+              <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, textAlign: 'center', marginTop: 4}}>
+                陪行人到达后将自动更新状态
+              </Text>
+            </Card>
+
+            {/* 操作按钮 */}
+            <View style={{marginTop: 20}}>
+              <TouchableOpacity
+                style={{alignSelf: 'center', paddingVertical: 8}}
+                onPress={handleCancel}>
+                <Text style={{color: colors.danger, fontSize: fontSize.sm}}>取消行程</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          /* ===== 匹配中 ===== */
+          <View style={styles.centerBox}>
+            {/* 脉冲圆 */}
+            <Animated.View style={[
+              styles.pulseCircle,
+              {
+                backgroundColor: colors.primaryLight,
+                opacity: pulseAnim,
+                transform: [{scale: pulseAnim}],
+              },
+            ]} />
+            <View style={[styles.innerCircle, {backgroundColor: colors.primary}]}>
+              <ActivityIndicator size="large" color="#fff" />
+            </View>
+
+            <Text style={{color: colors.textPrimary, fontSize: fontSize.xl, fontWeight: fontWeight.bold as any, marginTop: 32}}>
+              正在为您匹配
             </Text>
-          )}
-        </View>
+            <Text style={{color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 8, textAlign: 'center'}}>
+              预计 {estimatedMin} 分钟内匹配成功
+            </Text>
+            <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 4}}>
+              已等待 {Math.floor(elapsed / 60)} 分 {elapsed % 60} 秒
+            </Text>
 
-        {/* 匹配分数 */}
-        <View style={{alignItems: 'center'}}>
-          <Text style={{color: matchColor, fontSize: fontSize['2xl'], fontWeight: fontWeight.bold as any}}>
-            {matchScore}
-          </Text>
-          <Text style={{color: colors.textTertiary, fontSize: fontSize['4xs']}}>匹配分</Text>
-        </View>
+            {/* 取消按钮 */}
+            <TouchableOpacity
+              style={[styles.cancelBtn, {borderColor: colors.border, borderRadius: borderRadius.full}]}
+              onPress={handleCancel}
+              disabled={cancelling}>
+              <Text style={{color: colors.textTertiary, fontSize: fontSize.base}}>
+                {cancelling ? '取消中...' : '✕ 取消行程'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
-
-      {/* 路由重叠率 */}
-      {candidate.route_overlap !== null && (
-        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm}}>
-          <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, width: 56}}>
-            路线重合
-          </Text>
-          <ProgressBar
-            progress={candidate.route_overlap / 100}
-            variant="default"
-            height={6}
-            style={{flex: 1, marginHorizontal: spacing.sm}}
-          />
-          <Text style={{color: overlapColor(candidate.route_overlap), fontSize: fontSize.xs, fontWeight: fontWeight.semibold as any}}>
-            {candidate.route_overlap}%
-          </Text>
-        </View>
-      )}
-
-      {/* 认证 + 标签 */}
-      <View style={{flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.sm}}>
-        {candidate.certifications.map((cert, i) => (
-          <Badge key={i} text={`📜 ${cert}`} variant="primary" style={{marginRight: 4, marginBottom: 4}} />
-        ))}
-        {candidate.tags.map((tag, i) => (
-          <Badge key={`t-${i}`} text={tag} variant="success" style={{marginRight: 4, marginBottom: 4}} />
-        ))}
-      </View>
-
-      {/* 操作按钮 */}
-      {!isAccepted && !isRejected && (
-        <View style={{flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm}}>
-          <Button
-            title={actionLoading ? '处理中...' : '✅ 接受'}
-            variant="primary"
-            size="default"
-            style={{flex: 1}}
-            disabled={actionLoading}
-            onPress={onAccept}
-          />
-          <Button
-            title="✕ 拒绝"
-            variant="outline"
-            size="default"
-            style={{flex: 1}}
-            disabled={actionLoading}
-            onPress={onReject}
-          />
-        </View>
-      )}
-
-      {/* 已接受/已拒绝标识 */}
-      {isAccepted && (
-        <View style={[styles.statusTag, {backgroundColor: colors.successLight, borderRadius: borderRadius.full}]}>
-          <Text style={{color: colors.success, fontSize: fontSize.xs, fontWeight: fontWeight.semibold as any}}>
-            ✅ 已接受 · 陪行中
-          </Text>
-        </View>
-      )}
-      {isRejected && (
-        <View style={[styles.statusTag, {backgroundColor: colors.dangerLight, borderRadius: borderRadius.full}]}>
-          <Text style={{color: colors.danger, fontSize: fontSize.xs, fontWeight: fontWeight.semibold as any}}>
-            ✕ 已拒绝
-          </Text>
-        </View>
-      )}
-    </Card>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-
-  // ---- 页头 ----
+  flex: {flex: 1},
   header: {
-    paddingTop: 48,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingTop: 48, paddingBottom: 20, paddingHorizontal: 20,
+    flexDirection: 'row', alignItems: 'center',
   },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 6,
+  backBtn: {marginRight: 12, padding: 4},
+  headerTitle: {lineHeight: 28},
+  body: {flex: 1, paddingHorizontal: 20, paddingTop: 24},
+  centerBox: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    paddingBottom: 80,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  pulseCircle: {
+    position: 'absolute', width: 120, height: 120, borderRadius: 60,
   },
-  headerTitle: {
-    lineHeight: 28,
+  innerCircle: {
+    width: 80, height: 80, borderRadius: 40,
+    justifyContent: 'center', alignItems: 'center',
   },
-  headerSub: {
-    textAlign: 'center',
-    lineHeight: 20,
+  cancelBtn: {
+    marginTop: 40, paddingVertical: 12, paddingHorizontal: 40,
+    borderWidth: 1.5,
   },
-
-  // ---- 状态 ----
-  statusBar: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    alignItems: 'center',
+  successBanner: {
+    alignItems: 'center', padding: 20,
   },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 9999,
-  },
-
-  // ---- 分区 ----
-  section: {
-    paddingHorizontal: 20,
-    marginTop: 24,
-  },
-  sectionTitle: {
-    marginBottom: 4,
-    lineHeight: 24,
-  },
-
-  // ---- 状态标签 ----
-  statusTag: {
-    alignSelf: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    marginTop: 8,
-  },
-
-  // ---- 骨架屏 ----
-  skeletonCards: {
-    width: '100%',
-    paddingHorizontal: 20,
-    marginTop: 24,
-  },
-  skeleton: {
-    padding: 16,
-    marginBottom: 12,
-  },
-  skeletonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  skeletonCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: 12,
-  },
-  skeletonLine: {
-    height: 12,
-    borderRadius: 6,
-  },
-
-  // ---- 空状态 ----
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 32,
+  avatar: {
+    width: 56, height: 56, alignItems: 'center', justifyContent: 'center',
   },
 });
 

@@ -6,6 +6,7 @@ import TripHistoryScreen from '../screens/TripHistoryScreen';
 import EmergencyContactsScreen from '../screens/EmergencyContactsScreen';
 import GeoFenceScreen from '../screens/GeoFenceScreen';
 import VolunteerCertScreen from '../screens/VolunteerCertScreen';
+import ProfessionalCertScreen from '../screens/ProfessionalCertScreen';
 import PaymentScreen from '../screens/PaymentScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import {useTheme} from '../theme';
@@ -30,6 +31,7 @@ export type ProfileStackParamList = {
   EmergencyContacts: undefined;
   GeoFence: undefined;
   VolunteerCert: undefined;
+  ProfessionalCert: undefined;
   Payment: undefined;
   Settings: undefined;
 };
@@ -61,6 +63,9 @@ const ProfileStack: React.FC = () => {
       <Stack.Screen
         name="VolunteerCert"
         component={VolunteerCertScreen}      />
+      <Stack.Screen
+        name="ProfessionalCert"
+        component={ProfessionalCertScreen}      />
       <Stack.Screen
         name="Payment"
         component={PaymentScreen}      />

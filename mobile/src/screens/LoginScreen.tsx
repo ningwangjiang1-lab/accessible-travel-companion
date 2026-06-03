@@ -19,9 +19,9 @@ import {useAuthStore} from '../store/authStore';
  * 首次登录自动跳转注册流程（残障画像设置）。
  */
 
-const LoginScreen: React.FC = () => {
+const LoginScreen: React.FC<{navigation?: any}> = ({navigation}) => {
   const {colors, fontSize, fontWeight, borderRadius, spacing} = useTheme();
-  const {login, register, sendCode} = useAuthStore();
+  const {login, sendCode} = useAuthStore();
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -55,6 +55,8 @@ const LoginScreen: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!phone || !code) {
+      const isWeb = typeof window !== 'undefined';
+      if (isWeb) { window.alert('请输入手机号和验证码'); }
       Alert.alert('提示', '请输入手机号和验证码');
       return;
     }
@@ -65,35 +67,20 @@ const LoginScreen: React.FC = () => {
         await login(phone, code);
         return; // 登录成功，authStore.isLoggedIn → true，导航自动切换
       } catch (loginErr: any) {
-        // 如果是"未注册"，则走注册流程
+        // 如果是"未注册"，则跳转到身份选择注册流程
         if (loginErr.response?.status === 404) {
-          // 进入注册页面
-          await handleRegister();
+          navigation.navigate('Register', {phone, code});
+          return;
         } else {
           throw loginErr;
         }
       }
     } catch (err: any) {
+      const isWeb = typeof window !== 'undefined';
+      if (isWeb) { window.alert('登录失败\n\n' + (err.response?.data?.message || '请检查验证码')); }
       Alert.alert('登录失败', err.response?.data?.message || '请检查验证码');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleRegister = async () => {
-    // 首次注册：用最小信息创建用户（残障画像在注册流程中完善）
-    try {
-      await register({
-        phone,
-        code,
-        name: '',
-        disability_type: 'physical',
-      });
-      // 注册成功，authStore 更新，导航自动跳转
-      // 注意：此时用户需要进入注册流程设置残障画像
-      // 实际流程中，这里会跳转到一个多步骤注册页
-    } catch (err: any) {
-      Alert.alert('注册失败', err.response?.data?.message || '请稍后重试');
     }
   };
 

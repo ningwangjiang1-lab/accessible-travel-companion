@@ -22,6 +22,7 @@ export async function facilityRoutes(app: FastifyInstance) {
       querystring: {
         type: 'object',
         properties: {
+          q: {type: 'string', description: '关键词搜索（模糊匹配设施名称/地址）'},
           facility_type: {
             type: 'string',
             enum: ['accessible_toilet', 'parking', 'elevator', 'ramp', 'low_counter', 'braille_sign'],
@@ -39,6 +40,7 @@ export async function facilityRoutes(app: FastifyInstance) {
       try {
         const q = request.query as Record<string, any>;
         const result = await facilityService.searchFacilities({
+          query: q.q,
           facility_type: q.facility_type,
           lat: q.lat ? parseFloat(q.lat) : undefined,
           lng: q.lng ? parseFloat(q.lng) : undefined,

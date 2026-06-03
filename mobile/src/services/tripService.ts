@@ -66,3 +66,54 @@ export async function getUserTrips(limit = 10, offset = 0): Promise<TripResult[]
   const response = await api.get('/trips', {params: {limit, offset}});
   return response.data as TripResult[];
 }
+
+/** 服务模式：可接单的行程 */
+export interface AvailableTrip {
+  id: string;
+  user_name: string;
+  disability_type: string;
+  start_address: string;
+  end_address: string;
+  companion_type: string;
+  special_needs: string[];
+  status: string;
+  created_at: string;
+}
+
+/** 获取附近待接单行程（服务模式） */
+export async function getAvailableTrips(): Promise<AvailableTrip[]> {
+  const response = await api.get('/trips/available');
+  return response.data as AvailableTrip[];
+}
+
+/** 服务模式：我已接单的行程 */
+export interface AcceptedTrip {
+  id: string;
+  user_name: string;
+  disability_type: string;
+  start_address: string;
+  end_address: string;
+  companion_type: string;
+  special_needs: string[];
+  status: string;
+  match_status: string;
+  match_id: string;
+  created_at: string;
+}
+
+/** 获取我已接单的行程 */
+export async function getMyAcceptedTrips(): Promise<AcceptedTrip[]> {
+  const response = await api.get('/trips/accepted');
+  return response.data as AcceptedTrip[];
+}
+
+/** 志愿者接单 */
+export async function acceptTrip(tripId: string): Promise<any> {
+  const response = await api.post(`/trips/${tripId}/accept`);
+  return response.data;
+}
+
+/** 取消行程 */
+export async function cancelTrip(tripId: string): Promise<void> {
+  await api.post(`/trips/${tripId}/cancel`);
+}

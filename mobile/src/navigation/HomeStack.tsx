@@ -12,7 +12,7 @@ import {useTheme} from '../theme';
  */
 export type HomeStackParamList = {
   HomeMain: undefined;
-  FacilitySearch: undefined;
+  FacilitySearch: {query?: string} | undefined;
   SOS: undefined;
 };
 

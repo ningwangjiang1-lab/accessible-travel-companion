@@ -10,7 +10,7 @@ import {AppError} from './authService';
 
 // ---- 数据模型 ----
 
-export type CertType = 'basic' | 'professional' | 'first_aid' | 'sign_language' | 'guide_dog_handler';
+export type CertType = 'basic'; // 初始仅基础培训，高级技能后续追加
 export type CertStatus = 'pending' | 'approved' | 'rejected';
 
 export interface CreateCertInput {
@@ -36,37 +36,13 @@ export interface VolunteerCertification {
   updated_at: string;
 }
 
-/** 认证类型配置 */
+/** 认证类型配置（初始仅基础培训，高级技能通过后在 App 内追加） */
 export const CERT_TYPE_CONFIG: Record<CertType, {label: string; icon: string; description: string; requirements: string[]}> = {
   basic: {
-    label: '基础培训',
+    label: '基础志愿者培训',
     icon: '📋',
-    description: '完成平台基础无障碍陪护培训',
+    description: '完成平台基础无障碍陪护培训，成为认证志愿者，可为他人提供伴行服务',
     requirements: ['年满 18 周岁', '完成在线培训课程', '通过基础考核'],
-  },
-  professional: {
-    label: '专业培训',
-    icon: '🎓',
-    description: '具备专业护理或康复相关资质',
-    requirements: ['持有相关专业证书', '2 年以上从业经验', '通过专业考核'],
-  },
-  first_aid: {
-    label: '急救认证',
-    icon: '🏥',
-    description: '持有有效急救员证书',
-    requirements: ['红十字会或 AHA 急救证书', '证书在有效期内', '通过实操考核'],
-  },
-  sign_language: {
-    label: '手语翻译',
-    icon: '🤟',
-    description: '具备手语沟通能力',
-    requirements: ['手语等级证书', '通过手语面试', '完成无障碍沟通培训'],
-  },
-  guide_dog_handler: {
-    label: '导盲犬训练',
-    icon: '🦮',
-    description: '具备导盲犬配合出行经验',
-    requirements: ['导盲犬训练师认证', '导盲犬配合经验', '通过实操考核'],
   },
 };
 
@@ -133,9 +109,12 @@ export async function submitCertification(
     }
   }
 
+  // 开发环境自动审核通过，生产环境为 pending 等待人工审核
+  const status = process.env.NODE_ENV === 'production' ? 'pending' : 'approved';
+
   const result = await query(
     `INSERT INTO volunteer_certifications (user_id, real_name, id_card_number, cert_type, training_completed, status)
-     VALUES ($1, $2, $3, $4, $5, 'pending')
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
     [
       userId,
@@ -143,8 +122,17 @@ export async function submitCertification(
       input.id_card_number?.trim() || null,
       input.cert_type,
       input.training_completed || false,
+      status,
     ],
   );
+
+  // 开发环境自动升级用户角色为 volunteer
+  if (status === 'approved') {
+    await query(
+      `UPDATE users SET role = 'volunteer' WHERE id = $1 AND role = 'user'`,
+      [userId],
+    );
+  }
 
   return formatCert(result.rows[0]);
 }

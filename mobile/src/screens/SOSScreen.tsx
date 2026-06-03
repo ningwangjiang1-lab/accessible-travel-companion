@@ -56,22 +56,32 @@ const SOSScreen: React.FC<{navigation: any}> = ({navigation}) => {
 
   // ---- SOS 触发 ----
   const handleSOSPress = () => {
-    Alert.alert(
-      '🆘 紧急求助',
-      '确定要发送紧急求助信号吗？\n\n系统将：\n1. 通知所有紧急联系人\n2. 发送您的当前位置\n3. 显示附近的紧急设施',
-      [
-        {text: '取消', style: 'cancel'},
-        {
-          text: '立即求助',
-          style: 'destructive',
-          onPress: () => triggerSOS(),
-        },
-      ],
-    );
+    const isWeb = typeof window !== 'undefined';
+    if (isWeb) {
+      const confirmed = window.confirm(
+        '🆘 紧急求助\n\n确定要发送紧急求助信号吗？\n\n系统将：\n1. 通知所有紧急联系人\n2. 发送您的当前位置\n3. 显示附近的紧急设施'
+      );
+      if (confirmed) triggerSOS();
+    } else {
+      Alert.alert(
+        '🆘 紧急求助',
+        '确定要发送紧急求助信号吗？\n\n系统将：\n1. 通知所有紧急联系人\n2. 发送您的当前位置\n3. 显示附近的紧急设施',
+        [
+          {text: '取消', style: 'cancel'},
+          {
+            text: '立即求助',
+            style: 'destructive',
+            onPress: () => triggerSOS(),
+          },
+        ],
+      );
+    }
   };
 
   const triggerSOS = () => {
-    // 触发振动反馈（模拟）
+    const isWeb = typeof window !== 'undefined';
+
+    // 触发振动反馈（Web 不支持）
     try { Vibration.vibrate([500, 200, 500, 200, 1000]); } catch {}
 
     setSosActive(true);
@@ -90,9 +100,13 @@ const SOSScreen: React.FC<{navigation: any}> = ({navigation}) => {
 
     // 模拟发送通知
     setTimeout(() => {
+      const successMsg = `已通过短信和推送通知 ${contacts.length} 位紧急联系人\n\n附近医院和派出所已收到求助信息\n\n请保持冷静，等待救援`;
+      if (isWeb) {
+        window.alert('✅ 求助信号已发送\n\n' + successMsg);
+      }
       Alert.alert(
         '✅ 求助信号已发送',
-        `已通过短信和推送通知 ${contacts.length} 位紧急联系人\n\n附近医院和派出所已收到求助信息\n\n请保持冷静，等待救援`,
+        successMsg,
         [{text: '我知道了', onPress: () => setSosActive(false)}],
       );
     }, 3000);

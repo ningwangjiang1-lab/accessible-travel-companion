@@ -11,7 +11,7 @@ import {useAuthStore} from '../../store/authStore';
  * 由于 authStore.isLoggedIn 已为 true，导航会自动切换到主界面。
  */
 
-const RegisterCompleteScreen: React.FC = () => {
+const RegisterCompleteScreen: React.FC<{navigation?: any}> = ({navigation}) => {
   const {colors, fontSize, fontWeight, spacing} = useTheme();
   const {profile} = useAuthStore();
 
@@ -20,6 +20,8 @@ const RegisterCompleteScreen: React.FC = () => {
     visual: '🦯 视障模式',
     hearing: '🦻 听障模式',
     cognitive: '🧠 认知障碍模式',
+    elderly: '👴 高龄出行模式',
+    none: '👤 通用模式',
   };
 
   return (
@@ -76,7 +78,9 @@ const RegisterCompleteScreen: React.FC = () => {
             variant="primary"
             size="block"
             onPress={() => {
-              // isLoggedIn=true → 导航自动切换到主界面
+              if (navigation) {
+                navigation.reset({index: 0, routes: [{name: 'Main'}]});
+              }
             }}
           />
         </View>

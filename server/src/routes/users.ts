@@ -42,14 +42,18 @@ export async function userRoutes(app: FastifyInstance) {
         type: 'object',
         properties: {
           name: {type: 'string', description: '用户姓名'},
+          user_type: {
+            type: 'string',
+            enum: ['disabled', 'non_disabled'],
+          },
           disability_type: {
             type: 'string',
-            enum: ['physical', 'visual', 'hearing', 'cognitive'],
+            enum: ['physical', 'visual', 'hearing', 'cognitive', 'elderly', 'none'],
           },
-          assistive_device: {type: 'string'},
+          assistive_device: {type: 'string', description: '辅助设备（逗号分隔多选）'},
           nav_preference: {
             type: 'string',
-            enum: ['avoid_overpass', 'prefer_ramp', 'flat_only', 'barrier_free'],
+            description: '导航偏好（逗号分隔多选），如 barrier_free,prefer_ramp',
           },
           font_preference: {
             type: 'string',

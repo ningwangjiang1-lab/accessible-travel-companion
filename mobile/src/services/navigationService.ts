@@ -32,12 +32,20 @@ export interface NavigationData {
     distance_display: string;
     duration_display: string;
     accessibility_score: number;
+    /** 路线坐标 [[lat, lon], ...] */
+    coordinates: [number, number][];
+    /** 起点坐标 */
+    origin: [number, number];
+    /** 终点坐标 */
+    destination: [number, number];
   };
   steps: NavigationStep[];
   obstacles: ObstacleWarning[];
   companion: {
     name: string;
     phone: string;
+    lat: number;
+    lon: number;
   } | null;
 }
 

@@ -50,10 +50,15 @@ export async function authRoutes(app: FastifyInstance) {
           phone: {type: 'string', description: '手机号'},
           code: {type: 'string', description: '短信验证码'},
           name: {type: 'string', description: '姓名（选填）'},
+          user_type: {
+            type: 'string',
+            enum: ['disabled', 'non_disabled'],
+            description: '残障/非残障身份',
+          },
           disability_type: {
             type: 'string',
-            enum: ['physical', 'visual', 'hearing', 'cognitive'],
-            description: '残障类型',
+            enum: ['physical', 'visual', 'hearing', 'cognitive', 'elderly', 'none'],
+            description: '残障类型（none 表示非残障用户）',
           },
           assistive_device: {type: 'string', description: '辅具使用'},
           nav_preference: {

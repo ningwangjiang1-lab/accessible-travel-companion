@@ -152,15 +152,19 @@ const AIScreen: React.FC<{navigation?: any}> = ({navigation}) => {
         {/* ============================================================ */}
         {/* 3. 当前模式提示 */}
         {/* ============================================================ */}
-        {profile && (
+        {profile && profile.disability_type !== 'none' && (
           <View style={styles.modeRow}>
             <Text style={[styles.modeLabel, {color: colors.textTertiary, fontSize: fontSize.xs}]}>
               出行模式：
             </Text>
-            <ModeIndicator
-              mode={profile.disability_type}
-              style={{marginRight: spacing.sm}}
-            />
+            {(profile.disability_type === 'physical' || profile.disability_type === 'visual' || profile.disability_type === 'hearing' || profile.disability_type === 'cognitive') ? (
+              <ModeIndicator
+                mode={profile.disability_type as DisabilityMode}
+                style={{marginRight: spacing.sm}}
+              />
+            ) : (
+              <Tag label="👴 长辈模式" selected={true} />
+            )}
             {profile.nav_preference && (
               <Tag
                 label={NAV_LABELS[profile.nav_preference] || profile.nav_preference}

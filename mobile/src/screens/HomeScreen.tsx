@@ -72,7 +72,8 @@ const QUICK_ACTIONS = [
 
 const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
   const {colors, fontSize, fontWeight, spacing, borderRadius, shadows} = useTheme();
-  const {user, profile} = useAuthStore();
+  const {user, profile, mode, switchMode} = useAuthStore();
+  const canProvideService = user?.role === 'volunteer' || user?.role === 'professional';
 
   // 搜索关键词
   const [searchText, setSearchText] = useState('');
@@ -82,6 +83,18 @@ const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
   const [tripLoading, setTripLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // ---- 服务模式状态 ----
+  const [isOnline, setIsOnline] = useState(false);
+  const [availableTrips, setAvailableTrips] = useState<tripService.AvailableTrip[]>([]);
+  const [myOrders, setMyOrders] = useState<tripService.AcceptedTrip[]>([]);
+  const [serviceLoading, setServiceLoading] = useState(false);
+
+  const disabilityLabel: Record<string, string> = {
+    physical: '♿ 肢体障碍', visual: '🦯 视障',
+    hearing: '🦻 听障', cognitive: '🧠 认知障碍',
+    elderly: '👴 高龄', unknown: '👤 未知',
+  };
+
   /** 加载活跃行程 */
   const loadActiveTrip = useCallback(async () => {
     try {
@@ -89,24 +102,76 @@ const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
       const trip = await tripService.getActiveTrip();
       setActiveTrip(trip);
     } catch {
-      // 网络不可达或无活跃行程，静默处理
       setActiveTrip(null);
     } finally {
       setTripLoading(false);
     }
   }, []);
 
+  /** 加载服务模式数据 */
+  const loadServiceData = useCallback(async () => {
+    setServiceLoading(true);
+    try {
+      const [trips, orders] = await Promise.all([
+        tripService.getAvailableTrips(),
+        tripService.getMyAcceptedTrips(),
+      ]);
+      setAvailableTrips(trips);
+      setMyOrders(orders);
+    } catch {
+      // 静默
+    } finally {
+      setServiceLoading(false);
+    }
+  }, []);
+
+  /** 接单 */
+  const handleAcceptTrip = async (tripId: string) => {
+    const isWeb = typeof window !== 'undefined';
+    try {
+      await tripService.acceptTrip(tripId);
+      if (isWeb) { window.alert('✅ 接单成功！\n\n请前往「真人伴行」页面查看详情'); }
+      loadServiceData();
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || '接单失败';
+      if (isWeb) { window.alert('接单失败\n\n' + msg); }
+    }
+  };
+
   /** 下拉刷新 */
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadActiveTrip();
+    if (mode === 'service') {
+      await loadServiceData();
+    } else {
+      await loadActiveTrip();
+    }
     setRefreshing(false);
-  }, [loadActiveTrip]);
+  }, [loadActiveTrip, loadServiceData, mode]);
 
-  // 页面挂载时加载行程
+  // 页面挂载时加载
   useEffect(() => {
     loadActiveTrip();
   }, [loadActiveTrip]);
+
+  // 服务模式切换时加载数据
+  useEffect(() => {
+    if (mode === 'service') {
+      loadServiceData();
+    }
+  }, [mode, loadServiceData]);
+
+  // 每次切换到该页面时重新加载数据
+  useEffect(() => {
+    const unsubscribe = navigation?.addListener?.('focus', () => {
+      if (mode === 'service') {
+        loadServiceData();
+      } else {
+        loadActiveTrip();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, mode, loadServiceData, loadActiveTrip]);
 
   // 用户姓名（优先显示姓名，否则显示脱敏手机号）
   const displayName = user?.name || (user?.phone ? user.phone.slice(0, 3) + '****' + user.phone.slice(-4) : '用户');
@@ -149,8 +214,8 @@ const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
             </Text>
           </View>
 
-          {/* 残障模式标签（Hero 内半透明） */}
-          {profile && (
+          {/* 模式标签（Hero 内半透明） */}
+          {profile && profile.disability_type !== 'none' && (
             <View
               style={[
                 styles.heroModeTag,
@@ -161,6 +226,7 @@ const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
                 {profile.disability_type === 'visual' && '🦯 视障'}
                 {profile.disability_type === 'hearing' && '🦻 听障'}
                 {profile.disability_type === 'cognitive' && '🧠 认知障碍'}
+                {profile.disability_type === 'elderly' && '👴 长辈模式'}
               </Text>
             </View>
           )}
@@ -170,15 +236,194 @@ const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
         <SearchInput
           value={searchText}
           onChangeText={setSearchText}
+          onSubmitEditing={() => {
+            const trimmed = searchText.trim();
+            if (trimmed) {
+              navigation.navigate('FacilitySearch', {query: trimmed});
+            } else {
+              navigation.navigate('FacilitySearch');
+            }
+          }}
           placeholder="搜索目的地、设施..."
           accessibilityLabel="搜索目的地"
         />
+
+        {/* 模式切换（类似滴滴乘客/司机切换） */}
+        {canProvideService && (
+          <View style={[styles.modeSwitch, {backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: borderRadius.full}]}>
+            <TouchableOpacity
+              style={[
+                styles.modeBtn,
+                {borderRadius: borderRadius.full},
+                mode === 'passenger' && {backgroundColor: '#fff'},
+              ]}
+              onPress={() => switchMode('passenger')}
+              activeOpacity={0.8}>
+              <Text style={{
+                color: mode === 'passenger' ? colors.primary : colors.textInverse,
+                fontSize: fontSize.xs,
+                fontWeight: (mode === 'passenger' ? fontWeight.bold : fontWeight.medium) as any,
+              }}>
+                🧑 出行
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.modeBtn,
+                {borderRadius: borderRadius.full},
+                mode === 'service' && {backgroundColor: '#fff'},
+              ]}
+              onPress={() => switchMode('service')}
+              activeOpacity={0.8}>
+              <Text style={{
+                color: mode === 'service' ? colors.primary : colors.textInverse,
+                fontSize: fontSize.xs,
+                fontWeight: (mode === 'service' ? fontWeight.bold : fontWeight.medium) as any,
+              }}>
+                🤝 服务
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* ============================================================ */}
-      {/* 2. 模式指示器（Hero 下方） */}
+      {/* ★ 服务模式首页 */}
       {/* ============================================================ */}
-      {profile && (
+      {mode === 'service' && canProvideService && (
+        <View>
+          {/* 在线/离线切换 */}
+          <View style={[styles.section, {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}]}>
+            <View>
+              <Text style={{color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any}}>
+                🤝 服务模式
+              </Text>
+              <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 2}}>
+                {isOnline ? '已上线，等待派单中...' : '已离线'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={{
+                width: 56, height: 30, borderRadius: 15,
+                backgroundColor: isOnline ? colors.success : colors.border,
+                justifyContent: 'center', paddingHorizontal: 3,
+              }}
+              onPress={() => setIsOnline(!isOnline)}
+              activeOpacity={0.8}>
+              <View style={{
+                width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff',
+                alignSelf: isOnline ? 'flex-end' : 'flex-start',
+              }} />
+            </TouchableOpacity>
+          </View>
+
+          {/* 我的接单统计 */}
+          {myOrders.length > 0 && (
+            <View style={styles.section}>
+              <Text style={{color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.medium as any, marginBottom: spacing.sm}}>
+                📋 我的接单 ({myOrders.length})
+              </Text>
+              {myOrders.slice(0, 3).map(order => (
+                <View key={order.id} style={{
+                  backgroundColor: colors.surface, borderRadius: borderRadius.md,
+                  padding: spacing.md, marginBottom: spacing.sm,
+                  borderWidth: 1, borderColor: colors.borderLight,
+                }}>
+                  <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
+                    <Text style={{color: colors.textPrimary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}}>
+                      {order.user_name} · {disabilityLabel[order.disability_type] || '👤'}
+                    </Text>
+                    <Text style={{
+                      color: order.status === 'matched' ? colors.warning : order.status === 'in_progress' ? colors.success : colors.textTertiary,
+                      fontSize: fontSize.xs, fontWeight: fontWeight.medium as any,
+                    }}>
+                      {order.status === 'matched' ? '待开始' : order.status === 'in_progress' ? '进行中' : order.status}
+                    </Text>
+                  </View>
+                  <Text style={{color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 4}}>
+                    {order.start_address} → {order.end_address}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* 附近待接单行程 */}
+          <View style={styles.section}>
+            <Text style={{color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any, marginBottom: spacing.md}}>
+              📍 附近出行需求
+            </Text>
+
+            {serviceLoading ? (
+              <Text style={{color: colors.textTertiary, textAlign: 'center', padding: 24}}>加载中...</Text>
+            ) : availableTrips.length === 0 ? (
+              <View style={{alignItems: 'center', padding: 32}}>
+                <Text style={{fontSize: 40, marginBottom: 12}}>📭</Text>
+                <Text style={{color: colors.textTertiary, fontSize: fontSize.sm, textAlign: 'center'}}>
+                  暂无待接单的出行需求
+                </Text>
+              </View>
+            ) : (
+              availableTrips.map(trip => (
+                <TouchableOpacity
+                  key={trip.id}
+                  style={{
+                    backgroundColor: colors.surface, borderRadius: borderRadius.lg,
+                    padding: spacing.md, marginBottom: spacing.sm,
+                    borderWidth: 1, borderColor: colors.borderLight,
+                  }}
+                  activeOpacity={0.7}
+                  onPress={() => handleAcceptTrip(trip.id)}>
+                  <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <View style={{flex: 1}}>
+                      <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                        <Text style={{color: colors.textPrimary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}}>
+                          {trip.user_name}
+                        </Text>
+                        <Text style={{
+                          color: colors.primary, fontSize: fontSize.xs, fontWeight: fontWeight.medium as any,
+                          backgroundColor: colors.primaryLight, borderRadius: 9999,
+                          paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8,
+                        }}>
+                          {disabilityLabel[trip.disability_type] || '👤'}
+                        </Text>
+                      </View>
+                      <Text style={{color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 6}}>
+                        📍 {trip.start_address}
+                      </Text>
+                      <Text style={{color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 2}}>
+                        🏁 {trip.end_address}
+                      </Text>
+                      {trip.special_needs && trip.special_needs.length > 0 && (
+                        <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 6}}>
+                          🏷️ {trip.special_needs.join(' · ')}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{
+                      backgroundColor: colors.primary, borderRadius: borderRadius.full,
+                      paddingVertical: 8, paddingHorizontal: 16, marginLeft: 12,
+                    }}>
+                      <Text style={{color: '#fff', fontSize: fontSize.xs, fontWeight: fontWeight.bold as any}}>
+                        接单
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        </View>
+      )}
+
+      {/* ============================================================ */}
+      {/* ★ 出行模式（以下所有内容） */}
+      {/* ============================================================ */}
+      {mode === 'passenger' && (<>
+      {/* ============================================================ */}
+      {/* 2. 模式指示器（Hero 下方，仅残障用户显示） */}
+      {/* ============================================================ */}
+      {profile && profile.disability_type !== 'none' && (
         <View style={styles.section}>
           <Text
             style={[
@@ -192,7 +437,25 @@ const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
             ]}>
             当前模式
           </Text>
-          <ModeIndicator mode={profile.disability_type} />
+          {(profile.disability_type === 'physical' || profile.disability_type === 'visual' || profile.disability_type === 'hearing' || profile.disability_type === 'cognitive') ? (
+            <ModeIndicator mode={profile.disability_type as any} />
+          ) : (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: colors.primaryLight,
+                borderRadius: 9999,
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                alignSelf: 'flex-start',
+              }}>
+              <Text style={{fontSize: 16, marginRight: 4}}>👴</Text>
+              <Text style={{color: colors.primary, fontSize: 14, fontWeight: '500' as any}}>
+                长辈模式
+              </Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -309,7 +572,7 @@ const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
                 },
               ]}
               onPress={() => {
-                // TODO: Step 9 跳转行程发布页
+                navigation.navigate('CompanionTab', {screen: 'PublishTrip'});
               }}
               activeOpacity={0.8}>
               <Text
@@ -327,7 +590,7 @@ const HomeScreen: React.FC<{navigation?: any}> = ({navigation}) => {
 
       {/* 底部安全区 */}
       <View style={{height: 24}} />
-
+      </>)}
     </ScrollView>
   );
 };
@@ -397,6 +660,18 @@ const styles = StyleSheet.create({
   },
   newTripBtn: {
     alignSelf: 'center',
+  },
+
+  // ---- 模式切换 ----
+  modeSwitch: {
+    flexDirection: 'row',
+    marginTop: 12,
+    padding: 3,
+  },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
   },
 });
 

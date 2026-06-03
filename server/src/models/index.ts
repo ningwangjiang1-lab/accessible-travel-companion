@@ -11,7 +11,7 @@
 
 export type UserRole = 'user' | 'volunteer' | 'professional' | 'admin';
 
-export type DisabilityType = 'physical' | 'visual' | 'hearing' | 'cognitive';
+export type DisabilityType = 'physical' | 'visual' | 'hearing' | 'cognitive' | 'elderly' | 'none';
 
 export type NavPreference = 'avoid_overpass' | 'prefer_ramp' | 'flat_only' | 'barrier_free';
 
@@ -51,12 +51,15 @@ export type MessageType = 'chat' | 'trip' | 'system' | 'emergency';
 // 数据表模型
 // ============================================================
 
+export type UserType = 'disabled' | 'non_disabled';
+
 export interface User {
   id: string;
   phone: string;
   name: string | null;
   avatar: string | null;
   role: UserRole;
+  user_type: UserType;
   created_at: Date;
   updated_at: Date;
 }

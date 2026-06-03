@@ -198,3 +198,178 @@ export async function getUserTrips(
     created_at: trip.created_at.toISOString(),
   }));
 }
+
+/** 可接单行程（服务模式首页） */
+export interface AvailableTrip {
+  id: string;
+  user_name: string;
+  disability_type: string;
+  start_address: string;
+  end_address: string;
+  companion_type: string;
+  special_needs: string[];
+  status: string;
+  created_at: string;
+}
+
+/** 获取附近所有待接单的行程（排除自己的行程） */
+export async function getAvailableTrips(userId: string): Promise<AvailableTrip[]> {
+  const result = await query(
+    `SELECT
+      t.id, t.start_address, t.end_address, t.companion_type,
+      t.special_needs, t.status, t.created_at,
+      u.name as user_name,
+      dp.disability_type
+     FROM trips t
+     JOIN users u ON u.id = t.user_id
+     LEFT JOIN disability_profiles dp ON dp.user_id = t.user_id
+     WHERE t.user_id != $1
+       AND t.status IN ('pending', 'matching')
+     ORDER BY t.created_at DESC
+     LIMIT 50`,
+    [userId],
+  );
+
+  return result.rows.map(r => ({
+    id: r.id,
+    user_name: r.user_name || '匿名用户',
+    disability_type: r.disability_type || 'unknown',
+    start_address: r.start_address || '',
+    end_address: r.end_address || '',
+    companion_type: r.companion_type,
+    special_needs: r.special_needs || [],
+    status: r.status,
+    created_at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+  }));
+}
+
+/** 已接单的行程（服务模式 — 我接的单） */
+export async function getMyAcceptedTrips(userId: string): Promise<any[]> {
+  const result = await query(
+    `SELECT
+      t.id, t.start_address, t.end_address, t.companion_type,
+      t.special_needs, t.status, t.created_at, t.updated_at,
+      u.name as user_name,
+      dp.disability_type,
+      m.id as match_id, m.status as match_status
+     FROM trips t
+     JOIN matches m ON m.trip_id = t.id AND m.companion_id = $1
+     JOIN users u ON u.id = t.user_id
+     LEFT JOIN disability_profiles dp ON dp.user_id = t.user_id
+     ORDER BY t.created_at DESC
+     LIMIT 50`,
+    [userId],
+  );
+
+  return result.rows.map(r => ({
+    id: r.id,
+    user_name: r.user_name || '匿名用户',
+    disability_type: r.disability_type || 'unknown',
+    start_address: r.start_address || '',
+    end_address: r.end_address || '',
+    companion_type: r.companion_type,
+    special_needs: r.special_needs || [],
+    status: r.status,
+    match_status: r.match_status,
+    match_id: r.match_id,
+    created_at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+  }));
+}
+
+/** 接单：志愿者接受一个待接单行程 */
+export async function acceptTrip(
+  companionId: string,
+  tripId: string,
+): Promise<{trip: any; match: any}> {
+  const {pool} = await import('../db');
+
+  // 检查用户角色
+  const userResult = await query('SELECT role FROM users WHERE id = $1', [companionId]);
+  if (userResult.rows.length === 0) {
+    throw new AppError('用户不存在', 404);
+  }
+  const role = userResult.rows[0].role;
+  if (role !== 'volunteer' && role !== 'professional' && role !== 'admin') {
+    throw new AppError('仅志愿者或专业陪护可以接单，请先完成认证', 403);
+  }
+
+  // 检查是否已有进行中的陪行（不能同时接多单）
+  const activeCount = await query(
+    `SELECT COUNT(*) as cnt FROM matches m
+     JOIN trips t ON t.id = m.trip_id
+     WHERE m.companion_id = $1
+       AND m.status = 'accepted'
+       AND t.status IN ('matched', 'in_progress')`,
+    [companionId],
+  );
+  if (parseInt(activeCount.rows[0].cnt) > 0) {
+    throw new AppError('您已有进行中的陪行订单，请先完成当前订单再接新单', 409);
+  }
+
+  // 检查行程
+  const tripResult = await query('SELECT * FROM trips WHERE id = $1', [tripId]);
+  if (tripResult.rows.length === 0) {
+    throw new AppError('行程不存在', 404);
+  }
+  const trip = tripResult.rows[0];
+  if (trip.status !== 'pending' && trip.status !== 'matching') {
+    throw new AppError('该行程已被接单或已取消', 409);
+  }
+  if (trip.user_id === companionId) {
+    throw new AppError('不能接自己的行程', 400);
+  }
+
+  // 事务：更新行程状态 + 创建匹配记录
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await client.query(
+      `UPDATE trips SET status = 'matched', updated_at = NOW() WHERE id = $1`,
+      [tripId],
+    );
+
+    const matchResult = await client.query(
+      `INSERT INTO matches (trip_id, companion_id, match_score, status)
+       VALUES ($1, $2, $3, 'accepted')
+       RETURNING *`,
+      [tripId, companionId, 85],
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      trip: {id: trip.id, status: 'matched', ...trip},
+      match: matchResult.rows[0],
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** 取消行程（仅 pending/matching/matched 状态可取消） */
+export async function cancelTrip(userId: string, tripId: string): Promise<void> {
+  const tripResult = await query('SELECT * FROM trips WHERE id = $1 AND user_id = $2', [tripId, userId]);
+  if (tripResult.rows.length === 0) {
+    throw new AppError('行程不存在', 404);
+  }
+  const trip = tripResult.rows[0];
+  if (!['pending', 'matching', 'matched'].includes(trip.status)) {
+    throw new AppError('该行程当前状态不可取消（仅待匹配/已匹配状态可取消）', 400);
+  }
+
+  await query(
+    `UPDATE trips SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+    [tripId],
+  );
+
+  // 同时取消相关的 pending match 记录
+  await query(
+    `UPDATE matches SET status = 'rejected', updated_at = NOW()
+     WHERE trip_id = $1 AND status IN ('pending', 'accepted')`,
+    [tripId],
+  );
+}

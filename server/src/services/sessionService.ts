@@ -54,7 +54,48 @@ export interface SessionDetail {
   progress_percent: number;
 }
 
-// ---- 模拟陪行人扩展数据 ----
+// ---- 模拟陪行人扩展数据（与 matchService.ts 保持一致） ----
+
+const COMP_001_UUID = 'a0000001-0001-0001-0001-000000000001';
+const COMP_002_UUID = 'a0000001-0001-0001-0001-000000000002';
+const COMP_003_UUID = 'a0000001-0001-0001-0001-000000000003';
+const PRO_001_UUID  = 'b0000001-0001-0001-0001-000000000001';
+const PRO_002_UUID  = 'b0000001-0001-0001-0001-000000000002';
+
+interface MockCompanionFull {
+  id: string;
+  phone: string;
+  name: string;
+  role: 'volunteer' | 'professional';
+  rating: number;
+  completed_trips: number;
+  certifications: string[];
+  tags: string[];
+  hourly_rate_cents: number | null;
+}
+
+const ALL_COMPANIONS: MockCompanionFull[] = [
+  {id: COMP_001_UUID, phone: '138****6789', name: '李国华', role: 'volunteer', rating: 4.8, completed_trips: 156, certifications: ['基础培训', '急救认证'], tags: ['耐心细致', '熟悉本地', '轮椅经验'], hourly_rate_cents: null},
+  {id: COMP_002_UUID, phone: '139****7890', name: '王晓芳', role: 'volunteer', rating: 4.9, completed_trips: 203, certifications: ['基础培训', '手语翻译', '导盲犬认证'], tags: ['手语熟练', '视障陪护', '温柔体贴'], hourly_rate_cents: null},
+  {id: COMP_003_UUID, phone: '137****5678', name: '张永强', role: 'volunteer', rating: 4.6, completed_trips: 89, certifications: ['基础培训'], tags: ['年轻力壮', '响应快速'], hourly_rate_cents: null},
+  {id: PRO_001_UUID,  phone: '136****4567', name: '陈主任', role: 'professional', rating: 4.9, completed_trips: 512, certifications: ['护士执业证', '康复治疗师', '急救认证'], tags: ['临床经验', '康复护理', '无障碍专家'], hourly_rate_cents: 8000},
+  {id: PRO_002_UUID,  phone: '135****3456', name: '刘护工', role: 'professional', rating: 4.7, completed_trips: 298, certifications: ['护理员证', '急救认证'], tags: ['细心周到', '价格实惠', '熟悉医院'], hourly_rate_cents: 5000},
+];
+
+let _companionsEnsured = false;
+
+async function ensureCompanionUsers(): Promise<void> {
+  if (_companionsEnsured) return;
+  for (const comp of ALL_COMPANIONS) {
+    await query(
+      `INSERT INTO users (id, phone, name, role)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET name = $3, role = $4`,
+      [comp.id, comp.phone, comp.name, comp.role],
+    );
+  }
+  _companionsEnsured = true;
+}
 
 const COMPANION_EXTRA: Record<string, {
   phone: string;
@@ -63,18 +104,24 @@ const COMPANION_EXTRA: Record<string, {
   certifications: string[];
   tags: string[];
   hourly_rate_cents: number | null;
-}> = {
-  comp_001: {phone: '138****6789', rating: 4.8, completed_trips: 156, certifications: ['基础培训', '急救认证'], tags: ['耐心细致', '熟悉本地', '轮椅经验'], hourly_rate_cents: null},
-  comp_002: {phone: '139****7890', rating: 4.9, completed_trips: 203, certifications: ['基础培训', '手语翻译', '导盲犬认证'], tags: ['手语熟练', '视障陪护', '温柔体贴'], hourly_rate_cents: null},
-  comp_003: {phone: '137****5678', rating: 4.6, completed_trips: 89, certifications: ['基础培训'], tags: ['年轻力壮', '响应快速'], hourly_rate_cents: null},
-  pro_001: {phone: '136****4567', rating: 4.9, completed_trips: 512, certifications: ['护士执业证', '康复治疗师', '急救认证'], tags: ['临床经验', '康复护理', '无障碍专家'], hourly_rate_cents: 8000},
-  pro_002: {phone: '135****3456', rating: 4.7, completed_trips: 298, certifications: ['护理员证', '急救认证'], tags: ['细心周到', '价格实惠', '熟悉医院'], hourly_rate_cents: 5000},
-};
+}> = {};
+
+for (const comp of ALL_COMPANIONS) {
+  COMPANION_EXTRA[comp.id] = {
+    phone: comp.phone,
+    rating: comp.rating,
+    completed_trips: comp.completed_trips,
+    certifications: comp.certifications,
+    tags: comp.tags,
+    hourly_rate_cents: comp.hourly_rate_cents,
+  };
+}
 
 /**
  * 获取用户当前活跃的陪行会话
  */
 export async function getActiveSession(userId: string): Promise<SessionDetail | null> {
+  await ensureCompanionUsers();
   const result = await query(
     `SELECT
       cs.id,
@@ -117,6 +164,7 @@ export async function getSessionDetail(
   sessionId: string,
   userId: string,
 ): Promise<SessionDetail> {
+  await ensureCompanionUsers();
   const result = await query(
     `SELECT
       cs.id,
@@ -225,6 +273,67 @@ export async function updateSessionStatus(
 
   // 返回更新后的详情
   return getSessionDetail(sessionId, userId);
+}
+
+/**
+ * 开始陪行：从已匹配的行程创建 companion_session
+ * 志愿者点击"开始陪行"时调用
+ */
+export async function startSession(
+  companionId: string,
+  tripId: string,
+): Promise<SessionDetail> {
+  await ensureCompanionUsers();
+
+  // 验证：行程存在
+  const tripResult = await query(
+    'SELECT * FROM trips WHERE id = $1',
+    [tripId],
+  );
+  if (tripResult.rows.length === 0) {
+    throw new AppError('行程不存在', 404);
+  }
+  const trip = tripResult.rows[0];
+
+  // 验证：match 记录存在且 companion 是当前用户
+  const matchResult = await query(
+    'SELECT * FROM matches WHERE trip_id = $1 AND companion_id = $2 AND status = $3',
+    [tripId, companionId, 'accepted'],
+  );
+  if (matchResult.rows.length === 0) {
+    throw new AppError('您尚未接此行程的单', 403);
+  }
+  const match = matchResult.rows[0];
+
+  // 如果已有活跃 session，直接返回
+  const existingSession = await query(
+    'SELECT * FROM companion_sessions WHERE trip_id = $1 AND companion_id = $2 AND status IN ($3, $4)',
+    [tripId, companionId, 'active', 'paused'],
+  );
+  if (existingSession.rows.length > 0) {
+    return getSessionDetail(existingSession.rows[0].id, companionId);
+  }
+
+  // 如果行程已在进行中但无 session（异常情况），仍允许创建
+  if (trip.status !== 'matched' && trip.status !== 'in_progress') {
+    throw new AppError('该行程状态不允许开始陪行（当前状态：' + trip.status + '）', 400);
+  }
+
+  // 创建 session
+  const sessionResult = await query(
+    `INSERT INTO companion_sessions (trip_id, match_id, user_id, companion_id, status)
+     VALUES ($1, $2, $3, $4, 'active')
+     RETURNING *`,
+    [tripId, match.id, trip.user_id, companionId],
+  );
+
+  // 更新 trip 状态为 in_progress
+  await query(
+    `UPDATE trips SET status = 'in_progress', updated_at = NOW() WHERE id = $1`,
+    [tripId],
+  );
+
+  return getSessionDetail(sessionResult.rows[0].id, companionId);
 }
 
 // ---- 辅助函数 ----

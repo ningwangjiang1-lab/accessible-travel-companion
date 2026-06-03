@@ -77,7 +77,10 @@ const RootNavigator: React.FC = () => {
       <Stack.Navigator screenOptions={{headerShown: false}}>
         {isLoggedIn ? (
           // ---- 已登录：主界面 ----
-          <Stack.Screen name="Main" component={BottomTabNavigator} />
+          <>
+            <Stack.Screen name="Main" component={BottomTabNavigator} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
+          </>
         ) : (
           // ---- 未登录：认证流程 ----
           <>

@@ -47,6 +47,14 @@ export interface SessionDetail {
 export type SessionStatus = 'active' | 'paused' | 'completed' | 'emergency_ended';
 
 /**
+ * 开始陪行：从已匹配行程创建会话
+ */
+export async function startSession(tripId: string): Promise<SessionDetail> {
+  const response = await api.post('/sessions/start', {trip_id: tripId});
+  return response.data as SessionDetail;
+}
+
+/**
  * 获取当前活跃的陪行会话
  */
 export async function getActiveSession(): Promise<SessionDetail> {
