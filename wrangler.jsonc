@@ -4,5 +4,8 @@
   "assets": {
     "directory": "mobile/dist",
     "not_found_handling": "single-page-application"
+  },
+  "vars": {
+    "VITE_API_URL": "https://impartial-caring-production-3593.up.railway.app/api"
   }
 }

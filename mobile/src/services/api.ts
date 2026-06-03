@@ -12,9 +12,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const STORAGE_KEY_TOKEN = '@accessible_travel_token';
 
 // API 地址：通过环境变量配置，开发默认 localhost
-// Vite 中通过 VITE_API_URL 设置，生产环境指向 Render 后端
+// 生产环境自动指向 Railway 后端
 export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+  (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? 'https://impartial-caring-production-3593.up.railway.app/api'
+    : null)
+  || import.meta.env.VITE_API_URL
+  || 'http://localhost:3000/api';
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
