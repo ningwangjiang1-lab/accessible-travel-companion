@@ -16,7 +16,8 @@ export interface FacilitySummary {
   id: string;
   name: string;
   facility_type: FacilityType;
-  location: GeoPoint;
+  lat: number;
+  lon: number;
   address: string | null;
   floor: string | null;
   door_width_cm: number | null;

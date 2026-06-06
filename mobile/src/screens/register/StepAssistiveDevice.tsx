@@ -1,32 +1,41 @@
 import React from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import {useTheme} from '../../theme';
-import TypeSelector from '../../components/TypeSelector/TypeSelector';
-import type {TypeOption} from '../../components/TypeSelector/TypeSelector';
+import Tag from '../../components/Tag/Tag';
 
 /**
- * Step 2：选择辅助器具
- *
- * 6 种辅具选择：
- * - 轮椅 / 拐杖 / 盲杖 / 导盲犬 / 助听器 / 无需辅具
+ * Step 2：选择辅助器具（多选）
  */
 
-const DEVICE_OPTIONS: TypeOption[] = [
-  {value: 'wheelchair', icon: '🦽', label: '轮椅', description: '手动或电动轮椅'},
-  {value: 'crutches', icon: '🩼', label: '拐杖', description: '腋下拐或手杖'},
-  {value: 'cane', icon: '🦯', label: '盲杖', description: '视障导航用'},
-  {value: 'guide_dog', icon: '🦮', label: '导盲犬', description: '导盲犬陪同出行'},
-  {value: 'hearing_aid', icon: '🦻', label: '助听器', description: '助听设备'},
-  {value: 'none', icon: '🚶', label: '无需辅具', description: '不使用辅助器具'},
+const DEVICE_TAGS = [
+  {value: '轮椅', icon: '🦽', label: '轮椅'},
+  {value: '拐杖', icon: '🩼', label: '拐杖'},
+  {value: '盲杖', icon: '🦯', label: '盲杖'},
+  {value: '助听器', icon: '🦻', label: '助听器'},
+  {value: '助行器', icon: '🚶', label: '助行器'},
+  {value: '导盲犬', icon: '🦮', label: '导盲犬'},
 ];
 
 interface StepAssistiveDeviceProps {
+  /** 逗号分隔的已选值 */
   value: string;
   onChange: (value: string) => void;
 }
 
 const StepAssistiveDevice: React.FC<StepAssistiveDeviceProps> = ({value, onChange}) => {
   const {colors, fontSize, fontWeight, spacing} = useTheme();
+
+  // 解析已选值
+  const selected = value
+    ? value.split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+
+  const toggle = (deviceValue: string) => {
+    const next = selected.includes(deviceValue)
+      ? selected.filter(v => v !== deviceValue)
+      : [...selected, deviceValue];
+    onChange(next.join(','));
+  };
 
   return (
     <View>
@@ -42,23 +51,19 @@ const StepAssistiveDevice: React.FC<StepAssistiveDeviceProps> = ({value, onChang
           styles.subheading,
           {color: colors.textTertiary, fontSize: fontSize.sm, marginBottom: spacing.xl},
         ]}>
-        这将帮助我们规划更合适的无障碍路线
+        可多选，选过的信息会自动保存到个人资料
       </Text>
-      <TypeSelector
-        options={DEVICE_OPTIONS}
-        selectedValue={value || undefined}
-        onSelect={onChange}
-      />
-      {/* 跳过按钮 */}
-      <Text
-        style={{
-          textAlign: 'center',
-          color: colors.textTertiary,
-          fontSize: fontSize.xs,
-          marginTop: spacing.lg,
-        }}>
-        可稍后在个人中心修改
-      </Text>
+      <View style={styles.tagsWrap}>
+        {DEVICE_TAGS.map(tag => (
+          <Tag
+            key={tag.value}
+            label={`${tag.icon} ${tag.label}`}
+            selected={selected.includes(tag.value)}
+            onPress={() => toggle(tag.value)}
+            style={{marginRight: spacing.sm, marginBottom: spacing.sm}}
+          />
+        ))}
+      </View>
     </View>
   );
 };
@@ -70,6 +75,11 @@ const styles = StyleSheet.create({
   subheading: {
     textAlign: 'center',
     lineHeight: 20,
+  },
+  tagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
   },
 });
 

@@ -13,16 +13,12 @@ import {AppError} from './authService';
 export type FacilityType = 'accessible_toilet' | 'parking' | 'elevator' | 'ramp' | 'low_counter' | 'braille_sign';
 export type FacilityStatus = 'normal' | 'maintenance' | 'out_of_service' | 'crowded';
 
-export interface GeoPoint {
-  type: 'Point';
-  coordinates: [number, number];
-}
-
 export interface FacilitySummary {
   id: string;
   name: string;
   facility_type: FacilityType;
-  location: GeoPoint;
+  lat: number;
+  lon: number;
   address: string | null;
   floor: string | null;
   door_width_cm: number | null;
@@ -75,9 +71,11 @@ export const STATUS_LABELS: Record<FacilityStatus, string> = {
   crowded: '拥挤',
 };
 
-// ---- 模拟设施数据（北京地区） ----
+// ---- 设施数据已迁移至数据库（迁移 007） ----
 
-const MOCK_FACILITIES: FacilityDetail[] = [
+/* MOCK_FACILITIES removed — data now in DB */
+/*
+const _MOCK_FACILITIES: any[] = [
   // ===== 地铁站无障碍设施 =====
   {id: 'fac_001', name: '王府井地铁站 — 无障碍厕所', facility_type: 'accessible_toilet', location: {type: 'Point', coordinates: [116.417, 39.914]}, address: '王府井地铁站 B1 层', floor: 'B1', door_width_cm: 90, has_handrail: true, description: '站内无障碍厕所，宽敞干净，配有紧急呼叫按钮', source: 'official', verified: true, current_status: 'normal', status_history: [{status: 'normal', note: null, reported_by: null, reported_at: '2026-05-30T10:00:00Z', valid_until: null}]},
   {id: 'fac_002', name: '天安门广场 — 无障碍坡道', facility_type: 'ramp', location: {type: 'Point', coordinates: [116.397, 39.909]}, address: '天安门广场东侧入口', floor: null, door_width_cm: null, has_handrail: true, description: '广场东侧无障碍坡道，坡度平缓，两侧有扶手', source: 'official', verified: true, current_status: 'normal', status_history: [{status: 'normal', note: null, reported_by: null, reported_at: '2026-05-30T08:00:00Z', valid_until: null}]},
@@ -155,65 +153,83 @@ const MOCK_FACILITIES: FacilityDetail[] = [
 export async function searchFacilities(
   params: FacilitySearchParams = {},
 ): Promise<{facilities: FacilitySummary[]; total: number}> {
-  let result = [...MOCK_FACILITIES];
+  // 从数据库查询设施
+  const conditions: string[] = [];
+  const values: any[] = [];
+  let paramIndex = 1;
 
-  // 关键词搜索（模糊匹配名称/地址）
   if (params.query) {
-    const q = params.query.toLowerCase();
-    result = result.filter(f =>
-      f.name.toLowerCase().includes(q) ||
-      (f.address && f.address.toLowerCase().includes(q))
-    );
+    conditions.push(`(f.name ILIKE $${paramIndex} OR f.address ILIKE $${paramIndex})`);
+    values.push(`%${params.query}%`);
+    paramIndex++;
   }
-
-  // 按类型筛选
   if (params.facility_type) {
-    result = result.filter(f => f.facility_type === params.facility_type);
+    conditions.push(`f.facility_type = $${paramIndex}`);
+    values.push(params.facility_type);
+    paramIndex++;
   }
 
-  // 按距离筛选（基于坐标简单排序）
-  if (params.lat !== undefined && params.lng !== undefined) {
-    result = result.map(f => {
-      const flat = (f as any).lat || 0;
-      const flng = (f as any).lon || 0;
-      const dLat = (flat - params.lat!) * 111000; // 1° ≈ 111km
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // 查询总数
+  const countResult = await query(
+    `SELECT COUNT(*) as total FROM facilities f ${whereClause}`,
+    values,
+  );
+  const total = parseInt(countResult.rows[0].total, 10);
+
+  // 查询数据
+  const limit = params.limit || 50;
+  const offset = params.offset || 0;
+  const dataResult = await query(
+    `SELECT f.*, fs.status as current_status
+     FROM facilities f
+     LEFT JOIN facility_statuses fs ON fs.facility_id = f.id
+     ${whereClause}
+     ORDER BY f.name
+     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+    [...values, limit, offset],
+  );
+
+  const facilities: FacilitySummary[] = dataResult.rows.map((row: any) => {
+    let distance_meters: number | undefined;
+
+    if (params.lat !== undefined && params.lng !== undefined) {
+      const flat = row.lat || 0;
+      const flng = row.lon || 0;
+      const dLat = (flat - params.lat!) * 111000;
       const dLng = (flng - params.lng!) * 111000 * Math.cos(params.lat! * Math.PI / 180);
-      const distance = Math.sqrt(dLat * dLat + dLng * dLng);
-      return {...f, distance_meters: Math.round(distance)};
-    });
+      distance_meters = Math.round(Math.sqrt(dLat * dLat + dLng * dLng));
+    }
 
-    // 按距离排序
-    result.sort((a, b) => (a.distance_meters || 0) - (b.distance_meters || 0));
+    return {
+      id: row.id,
+      name: row.name,
+      facility_type: row.facility_type,
+      lat: row.lat,
+      lon: row.lon,
+      address: row.address || null,
+      floor: row.floor || null,
+      door_width_cm: row.door_width_cm || null,
+      has_handrail: row.has_handrail || false,
+      description: row.description || null,
+      source: row.source || 'amap',
+      verified: row.verified || false,
+      current_status: row.current_status || null,
+      distance_meters,
+    };
+  });
 
-    // 半径筛选
+  // 按距离排序
+  if (params.lat !== undefined && params.lng !== undefined) {
+    facilities.sort((a, b) => (a.distance_meters || 0) - (b.distance_meters || 0));
     if (params.radius_meters) {
-      result = result.filter(f => (f.distance_meters || 0) <= params.radius_meters!);
+      return {
+        facilities: facilities.filter(f => (f.distance_meters || 0) <= params.radius_meters!),
+        total,
+      };
     }
   }
-
-  const total = result.length;
-
-  // 分页
-  const offset = params.offset || 0;
-  const limit = params.limit || 20;
-  const paged = result.slice(offset, offset + limit);
-
-  // 去掉详情字段
-  const facilities: FacilitySummary[] = paged.map(f => ({
-    id: f.id,
-    name: f.name,
-    facility_type: f.facility_type,
-    location: f.location,
-    address: f.address,
-    floor: f.floor,
-    door_width_cm: f.door_width_cm,
-    has_handrail: f.has_handrail,
-    description: f.description,
-    source: f.source,
-    verified: f.verified,
-    current_status: f.current_status,
-    distance_meters: f.distance_meters,
-  }));
 
   return {facilities, total};
 }
@@ -221,12 +237,35 @@ export async function searchFacilities(
 /**
  * 获取设施详情
  */
-export async function getFacilityById(facilityId: string): Promise<FacilityDetail> {
-  const facility = MOCK_FACILITIES.find(f => f.id === facilityId);
-  if (!facility) {
+export async function getFacilityById(facilityId: string): Promise<FacilitySummary | null> {
+  const result = await query(
+    `SELECT f.*, fs.status as current_status
+     FROM facilities f
+     LEFT JOIN facility_statuses fs ON fs.facility_id = f.id
+     WHERE f.id = $1`,
+    [facilityId],
+  );
+
+  if (result.rows.length === 0) {
     throw new AppError('设施不存在', 404);
   }
-  return facility;
+
+  const row = result.rows[0];
+  return {
+    id: row.id,
+    name: row.name,
+    facility_type: row.facility_type,
+    lat: row.lat,
+    lon: row.lon,
+    address: row.address || null,
+    floor: row.floor || null,
+    door_width_cm: row.door_width_cm || null,
+    has_handrail: row.has_handrail || false,
+    description: row.description || null,
+    source: row.source || 'amap',
+    verified: row.verified || false,
+    current_status: row.current_status || null,
+  };
 }
 
 /**

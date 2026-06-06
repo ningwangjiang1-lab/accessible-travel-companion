@@ -1,38 +1,19 @@
 import React from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import {useTheme} from '../../theme';
+import Tag from '../../components/Tag/Tag';
 import TypeSelector from '../../components/TypeSelector/TypeSelector';
 import type {TypeOption} from '../../components/TypeSelector/TypeSelector';
 
 /**
- * Step 3：导航偏好 + 字体偏好
+ * Step 3：导航偏好（多选）+ 字体偏好（单选）
  */
 
-const NAV_OPTIONS: TypeOption[] = [
-  {
-    value: 'barrier_free',
-    icon: '✅',
-    label: '无障碍优先',
-    description: '综合最优的无障碍路线',
-  },
-  {
-    value: 'avoid_overpass',
-    icon: '🌉',
-    label: '避开天桥',
-    description: '优先选择地下通道或斑马线',
-  },
-  {
-    value: 'prefer_ramp',
-    icon: '🔽',
-    label: '优先坡道',
-    description: '尽量走坡道而非台阶',
-  },
-  {
-    value: 'flat_only',
-    icon: '➡️',
-    label: '只走平路',
-    description: '完全避免台阶和陡坡',
-  },
+const NAV_TAGS = [
+  {value: 'barrier_free', icon: '✅', label: '完全无障碍'},
+  {value: 'prefer_ramp', icon: '🔽', label: '偏好坡道'},
+  {value: 'avoid_overpass', icon: '🌉', label: '避开天桥'},
+  {value: 'flat_only', icon: '🟰', label: '仅平坦路'},
 ];
 
 const FONT_OPTIONS: TypeOption[] = [
@@ -56,9 +37,21 @@ const StepPreferences: React.FC<StepPreferencesProps> = ({
 }) => {
   const {colors, fontSize, fontWeight, spacing} = useTheme();
 
+  // 解析已选导航偏好
+  const selectedNav = navPreference
+    ? navPreference.split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+
+  const toggleNav = (value: string) => {
+    const next = selectedNav.includes(value)
+      ? selectedNav.filter(v => v !== value)
+      : [...selectedNav, value];
+    onNavChange(next.join(','));
+  };
+
   return (
     <View>
-      {/* 导航偏好 */}
+      {/* 导航偏好（多选） */}
       <Text
         style={[
           styles.heading,
@@ -71,18 +64,24 @@ const StepPreferences: React.FC<StepPreferencesProps> = ({
           styles.subheading,
           {color: colors.textTertiary, fontSize: fontSize.sm, marginBottom: spacing.md},
         ]}>
-        选择适合您出行方式的路线规划偏好
+        可多选，选过的信息会自动保存到个人资料
       </Text>
-      <TypeSelector
-        options={NAV_OPTIONS}
-        selectedValue={navPreference}
-        onSelect={onNavChange}
-      />
+      <View style={styles.tagsWrap}>
+        {NAV_TAGS.map(tag => (
+          <Tag
+            key={tag.value}
+            label={`${tag.icon} ${tag.label}`}
+            selected={selectedNav.includes(tag.value)}
+            onPress={() => toggleNav(tag.value)}
+            style={{marginRight: spacing.sm, marginBottom: spacing.sm}}
+          />
+        ))}
+      </View>
 
       {/* 分隔 */}
       <View style={{height: 32}} />
 
-      {/* 字体偏好 */}
+      {/* 字体偏好（单选） */}
       <Text
         style={[
           styles.heading,
@@ -113,6 +112,11 @@ const styles = StyleSheet.create({
   subheading: {
     textAlign: 'center',
     lineHeight: 20,
+  },
+  tagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
   },
 });
 

@@ -109,8 +109,8 @@ export async function submitCertification(
     }
   }
 
-  // 开发环境自动审核通过，生产环境为 pending 等待人工审核
-  const status = process.env.NODE_ENV === 'production' ? 'pending' : 'approved';
+  // 自动审核通过（接入人工审核系统后改为 pending）
+  const status = 'approved';
 
   const result = await query(
     `INSERT INTO volunteer_certifications (user_id, real_name, id_card_number, cert_type, training_completed, status)
