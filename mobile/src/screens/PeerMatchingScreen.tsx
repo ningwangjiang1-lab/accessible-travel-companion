@@ -197,7 +197,7 @@ const PeerMatchingScreen: React.FC<{navigation: any}> = ({navigation}) => {
               title="📝 发布行程"
               variant="primary"
               size="default"
-              onPress={() => navigation.navigate('PublishTrip')}
+              onPress={() => navigation.navigate('PublishPeerTrip')}
               style={{marginTop: 16}}
             />
           </View>

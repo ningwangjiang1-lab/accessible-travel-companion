@@ -7,6 +7,7 @@ import CompanionActiveScreen from '../screens/CompanionActiveScreen';
 import RatingScreen from '../screens/RatingScreen';
 import ProfessionalListScreen from '../screens/ProfessionalListScreen';
 import PeerMatchingScreen from '../screens/PeerMatchingScreen';
+import PublishPeerTripScreen from '../screens/PublishPeerTripScreen';
 import {useTheme} from '../theme';
 
 /**
@@ -20,6 +21,7 @@ import {useTheme} from '../theme';
  * - Rating：评价页（Step 12，预留）
  * - ProfessionalList：专业陪护列表（Step 16，预留）
  * - PeerMatching：同行者匹配
+ * - PublishPeerTrip：发布同行行程
  */
 export type CompanionStackParamList = {
   CompanionMain: undefined;
@@ -29,6 +31,7 @@ export type CompanionStackParamList = {
   Rating: {sessionId: string};
   ProfessionalList: undefined;
   PeerMatching: undefined;
+  PublishPeerTrip: undefined;
 };
 
 const Stack = createStackNavigator<CompanionStackParamList>();
@@ -61,6 +64,9 @@ const CompanionStack: React.FC = () => {
       <Stack.Screen
         name="PeerMatching"
         component={PeerMatchingScreen}      />
+      <Stack.Screen
+        name="PublishPeerTrip"
+        component={PublishPeerTripScreen}      />
     </Stack.Navigator>
   );
 };
