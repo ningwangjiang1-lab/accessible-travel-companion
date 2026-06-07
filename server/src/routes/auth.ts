@@ -63,8 +63,7 @@ export async function authRoutes(app: FastifyInstance) {
           assistive_device: {type: 'string', description: '辅具使用'},
           nav_preference: {
             type: 'string',
-            enum: ['avoid_overpass', 'prefer_ramp', 'flat_only', 'barrier_free'],
-            description: '导航偏好',
+            description: '导航偏好（逗号分隔多选），如 barrier_free,prefer_ramp',
           },
         },
       },
