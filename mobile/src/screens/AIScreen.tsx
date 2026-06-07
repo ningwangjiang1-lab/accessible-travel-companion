@@ -32,13 +32,23 @@ import type {DisabilityMode} from '../components/ModeIndicator/ModeIndicator';
  * 依赖：Step 3 组件库、Step 5 authStore、Step 6 routeService
  */
 
-/** 导航偏好中文映射 */
-const NAV_LABELS: Record<string, string> = {
-  barrier_free: '无障碍优先',
-  avoid_overpass: '避开天桥',
-  prefer_ramp: '优先坡道',
-  flat_only: '只走平路',
+/** 导航偏好 → emoji + 中文 */
+const NAV_LABELS: Record<string, {emoji: string; label: string}> = {
+  barrier_free: {emoji: '✅', label: '无障碍优先'},
+  avoid_overpass: {emoji: '🌉', label: '避开天桥'},
+  prefer_ramp: {emoji: '🔽', label: '优先坡道'},
+  flat_only: {emoji: '🟰', label: '只走平路'},
 };
+
+/** 将逗号分隔的导航偏好转为中文标签数组 */
+function parseNavLabels(navPreference: string | null | undefined): string[] {
+  if (!navPreference) return [];
+  return navPreference
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(v => NAV_LABELS[v] ? `${NAV_LABELS[v].emoji} ${NAV_LABELS[v].label}` : v);
+}
 
 const AIScreen: React.FC<{navigation?: any}> = ({navigation}) => {
   const {colors, fontSize, fontWeight, spacing, borderRadius, shadows} = useTheme();
@@ -161,12 +171,14 @@ const AIScreen: React.FC<{navigation?: any}> = ({navigation}) => {
               mode={profile.disability_type as DisabilityMode}
               style={{marginRight: spacing.sm}}
             />
-            {profile.nav_preference && (
+            {parseNavLabels(profile.nav_preference).map((label, i) => (
               <Tag
-                label={NAV_LABELS[profile.nav_preference] || profile.nav_preference}
+                key={i}
+                label={label}
                 selected={true}
+                style={{marginRight: spacing.xs, marginBottom: 4}}
               />
-            )}
+            ))}
           </View>
         )}
 
