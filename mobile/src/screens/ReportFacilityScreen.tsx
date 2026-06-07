@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import TypeSelector from '../components/TypeSelector/TypeSelector';
 import type {TypeOption} from '../components/TypeSelector/TypeSelector';
 import Button from '../components/Button/Button';
 import Card from '../components/Card/Card';
+import * as uploadService from '../services/uploadService';
 
 /**
  * ReportFacilityScreen — 上报无障碍设施
@@ -40,6 +41,11 @@ const ReportFacilityScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const [lonStr, setLonStr] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 照片上传
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoUrl, setPhotoUrl] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // GPS 定位状态
   const [isLocating, setIsLocating] = useState(false);
@@ -109,6 +115,12 @@ const ReportFacilityScreen: React.FC<{navigation: any}> = ({navigation}) => {
       Alert.alert('提示', msg);
       return;
     }
+    if (!photoUrl) {
+      const msg = '请上传现场照片';
+      if (typeof window !== 'undefined') { window.alert(msg); }
+      Alert.alert('提示', msg);
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -119,6 +131,7 @@ const ReportFacilityScreen: React.FC<{navigation: any}> = ({navigation}) => {
         lon,
         address: address.trim() || undefined,
         description: description.trim() || undefined,
+        photo_url: photoUrl,
       });
       const successMsg = '设施已上报，感谢您的贡献！';
       if (typeof window !== 'undefined') { window.alert('✅ 上报成功\n\n' + successMsg); }
@@ -260,6 +273,67 @@ const ReportFacilityScreen: React.FC<{navigation: any}> = ({navigation}) => {
             placeholder="如：北京市朝阳区XX路XX号"
             maxLength={200}
           />
+
+          {/* 现场照片（必填） */}
+          <Text style={[styles.formLabel, {color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}]}>
+            📷 现场照片 <Text style={{color: colors.danger}}>*</Text>
+          </Text>
+          {typeof window !== 'undefined' && (
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{display: 'none'}}
+              onChange={async (e: any) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setPhotoFile(file);
+                  try {
+                    const result = await uploadService.uploadImage(file);
+                    const fullUrl = `https://impartial-caring-production-3593.up.railway.app${result.url}`;
+                    setPhotoUrl(fullUrl);
+                  } catch {
+                    if (typeof window !== 'undefined') { window.alert('图片上传失败，请重试'); }
+                  }
+                }
+              }}
+            />
+          )}
+          <TouchableOpacity
+            style={{
+              borderWidth: 1.5,
+              borderColor: photoUrl ? '#4CAF50' : colors.danger,
+              borderRadius: borderRadius.md,
+              padding: 14,
+              marginBottom: spacing.md,
+              alignItems: 'center',
+            }}
+            activeOpacity={0.6}
+            onPress={() => {
+              if (fileInputRef.current) {
+                fileInputRef.current.click();
+              }
+            }}>
+            {photoUrl ? (
+              <View style={{alignItems: 'center'}}>
+                <Text style={{color: '#4CAF50', fontSize: fontSize.sm}}>✅ 照片已上传</Text>
+                {typeof window !== 'undefined' && (
+                  <img
+                    src={photoUrl}
+                    alt="预览"
+                    style={{width: 120, height: 90, objectFit: 'cover', borderRadius: 8, marginTop: 8}}
+                  />
+                )}
+              </View>
+            ) : (
+              <View style={{alignItems: 'center'}}>
+                <Text style={{color: colors.danger, fontSize: fontSize.sm}}>📷 点击上传现场照片（必填）</Text>
+                <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 4}}>
+                  便于工作人员核实设施情况
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
           {/* 描述 */}
           <FormInput
