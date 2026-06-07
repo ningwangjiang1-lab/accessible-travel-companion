@@ -178,13 +178,18 @@ export async function searchFacilities(
   );
   const total = parseInt(countResult.rows[0].total, 10);
 
-  // 查询数据
+  // 查询数据（使用子查询获取每个设施的最新状态）
   const limit = params.limit || 50;
   const offset = params.offset || 0;
   const dataResult = await query(
-    `SELECT f.*, fs.status as current_status
+    `SELECT f.*,
+            COALESCE(
+              (SELECT fs.status FROM facility_statuses fs
+               WHERE fs.facility_id = f.id
+               ORDER BY fs.reported_at DESC LIMIT 1),
+              'normal'
+            ) as current_status
      FROM facilities f
-     LEFT JOIN facility_statuses fs ON fs.facility_id = f.id
      ${whereClause}
      ORDER BY f.name
      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
@@ -239,9 +244,14 @@ export async function searchFacilities(
  */
 export async function getFacilityById(facilityId: string): Promise<any> {
   const result = await query(
-    `SELECT f.*, fs.status as current_status
+    `SELECT f.*,
+            COALESCE(
+              (SELECT fs.status FROM facility_statuses fs
+               WHERE fs.facility_id = f.id
+               ORDER BY fs.reported_at DESC LIMIT 1),
+              'normal'
+            ) as current_status
      FROM facilities f
-     LEFT JOIN facility_statuses fs ON fs.facility_id = f.id
      WHERE f.id = $1`,
     [facilityId],
   );

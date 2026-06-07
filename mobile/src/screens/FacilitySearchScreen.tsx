@@ -53,6 +53,13 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
   const [selectedFacility, setSelectedFacility] = useState<FacilityDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // ---- 状态上报表单 ----
+  const [statusFormVisible, setStatusFormVisible] = useState(false);
+  const [reportStatus, setReportStatus] = useState<string>('normal');
+  const [reportNote, setReportNote] = useState('');
+  const [reportPhoto, setReportPhoto] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+
   // ---- 加载类型 ----
   useEffect(() => {
     facilityService.getFacilityTypes().then(setTypes).catch(() => {});
@@ -341,13 +348,11 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
                 </Text>
                 <View style={{flexDirection: 'row', marginTop: spacing.sm}}>
                   <Badge text={FACILITY_TYPE_MAP[selectedFacility.facility_type].icon + ' ' + FACILITY_TYPE_MAP[selectedFacility.facility_type].label} variant="primary" />
-                  {selectedFacility.current_status && (
-                    <Badge
-                      text={STATUS_LABELS[selectedFacility.current_status]}
-                      variant={STATUS_VARIANTS[selectedFacility.current_status]}
-                      style={{marginLeft: spacing.xs}}
-                    />
-                  )}
+                  <Badge
+                    text={STATUS_LABELS[selectedFacility.current_status || 'normal'] || '正常'}
+                    variant={STATUS_VARIANTS[selectedFacility.current_status || 'normal'] || 'success'}
+                    style={{marginLeft: spacing.xs}}
+                  />
                   {!selectedFacility.verified && (
                     <Badge text="未认证" variant="warning" style={{marginLeft: spacing.xs}} />
                   )}
@@ -379,31 +384,128 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
                 </Text>
               </Card>
 
-              {/* 状态上报按钮 */}
+              {/* 状态上报表单 */}
               <Card variant="card" style={{marginTop: spacing.md}}>
                 <Text style={{color: colors.textPrimary, fontSize: fontSize.base, fontWeight: fontWeight.bold as any, marginBottom: spacing.sm}}>
                   📊 上报设施状态
                 </Text>
-                <View style={{flexDirection: 'row', flexWrap: 'wrap'}}>
-                  {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map(status => (
-                    <Tag
-                      key={status}
-                      label={`${STATUS_LABELS[status]}`}
-                      selected={false}
-                      onPress={async () => {
-                        try {
-                          await facilityService.reportFacilityStatus(selectedFacility!.id, status);
-                          if (typeof window !== 'undefined') { window.alert('状态已更新'); }
-                          setDetailVisible(false);
-                        } catch (err: any) {
-                          const msg = err?.response?.data?.error || '操作失败';
-                          if (typeof window !== 'undefined') { window.alert(msg); }
-                        }
+
+                {!statusFormVisible ? (
+                  <TouchableOpacity
+                    style={[styles.reportBtn, {backgroundColor: colors.primary, borderRadius: borderRadius.md}]}
+                    onPress={() => {
+                      setReportStatus(selectedFacility?.current_status || 'normal');
+                      setReportNote('');
+                      setReportPhoto('');
+                      setStatusFormVisible(true);
+                    }}>
+                    <Text style={{color: colors.textInverse, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any, textAlign: 'center'}}>
+                      📝 更新状态
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View>
+                    {/* 状态选择 */}
+                    <Text style={{color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: fontWeight.medium as any, marginBottom: 6}}>
+                      选择状态
+                    </Text>
+                    <View style={{flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.sm}}>
+                      {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map(status => (
+                        <Tag
+                          key={status}
+                          label={STATUS_LABELS[status]}
+                          selected={reportStatus === status}
+                          onPress={() => setReportStatus(status)}
+                          style={{marginRight: 6, marginBottom: 6}}
+                        />
+                      ))}
+                    </View>
+
+                    {/* 备注 */}
+                    <TouchableOpacity
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: borderRadius.md,
+                        padding: 12,
+                        marginBottom: spacing.sm,
                       }}
-                      style={{marginRight: 6, marginBottom: 6}}
-                    />
-                  ))}
-                </View>
+                      activeOpacity={0.5}
+                      onPress={() => {
+                        const note = typeof window !== 'undefined'
+                          ? window.prompt('请输入状态备注（选填）：', reportNote) || reportNote
+                          : reportNote;
+                        setReportNote(note);
+                      }}>
+                      <Text style={{color: reportNote ? colors.textPrimary : colors.textTertiary, fontSize: fontSize.sm}}>
+                        {reportNote || '📝 添加备注说明（选填，点击编辑）'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* 图片 URL */}
+                    <TouchableOpacity
+                      style={{
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: borderRadius.md,
+                        padding: 12,
+                        marginBottom: spacing.md,
+                      }}
+                      activeOpacity={0.5}
+                      onPress={() => {
+                        const url = typeof window !== 'undefined'
+                          ? window.prompt('请输入现场照片 URL（选填，便于审核）：', reportPhoto) || reportPhoto
+                          : reportPhoto;
+                        setReportPhoto(url);
+                      }}>
+                      <Text style={{color: reportPhoto ? colors.primary : colors.textTertiary, fontSize: fontSize.sm}}>
+                        {reportPhoto ? '📷 已添加照片链接' : '📷 上传现场照片（选填，点击输入 URL）'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* 提交 / 取消 */}
+                    <View style={{flexDirection: 'row', gap: 8}}>
+                      <TouchableOpacity
+                        style={{
+                          flex: 1, paddingVertical: 10, alignItems: 'center',
+                          borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border,
+                        }}
+                        onPress={() => setStatusFormVisible(false)}>
+                        <Text style={{color: colors.textSecondary, fontSize: fontSize.sm}}>取消</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{
+                          flex: 1, paddingVertical: 10, alignItems: 'center',
+                          backgroundColor: reportSubmitting ? colors.border : colors.primary,
+                          borderRadius: borderRadius.md,
+                        }}
+                        disabled={reportSubmitting}
+                        onPress={async () => {
+                          setReportSubmitting(true);
+                          try {
+                            await facilityService.reportFacilityStatus(
+                              selectedFacility!.id,
+                              reportStatus,
+                              [reportNote, reportPhoto].filter(Boolean).join(' | ') || undefined,
+                            );
+                            if (typeof window !== 'undefined') { window.alert('状态已更新，感谢您的贡献！'); }
+                            setStatusFormVisible(false);
+                            setDetailVisible(false);
+                            loadFacilities();
+                          } catch (err: any) {
+                            const msg = err?.response?.data?.error || '操作失败';
+                            if (typeof window !== 'undefined') { window.alert(msg); }
+                          } finally {
+                            setReportSubmitting(false);
+                          }
+                        }}>
+                        <Text style={{color: colors.textInverse, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}}>
+                          {reportSubmitting ? '提交中...' : '提交上报'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </Card>
 
               {selectedFacility.status_history.length > 0 && (
