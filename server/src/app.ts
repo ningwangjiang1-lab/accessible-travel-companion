@@ -1,7 +1,11 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import * as path from 'path';
+import * as fs from 'fs';
 import {env} from './config/env';
 import {healthRoutes} from './routes/health';
 import {authRoutes} from './routes/auth';
@@ -18,6 +22,7 @@ import {geoFenceRoutes} from './routes/geoFences';
 import {volunteerCertRoutes} from './routes/volunteerCerts';
 import {facilityRoutes} from './routes/facilities';
 import {peerMatchRoutes} from './routes/peerMatch';
+import {uploadRoutes} from './routes/upload';
 
 /**
  * 创建并配置 Fastify 应用实例
@@ -44,6 +49,24 @@ export async function buildApp() {
   await app.register(cors, {
     origin: true,
     credentials: true,
+  });
+
+  // 文件上传支持
+  await app.register(multipart, {
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB
+    },
+  });
+
+  // 静态文件服务（上传的图片）
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, {recursive: true});
+  }
+  await app.register(fastifyStatic, {
+    root: uploadsDir,
+    prefix: '/uploads/',
+    decorateReply: false,
   });
 
   // Swagger API 文档
@@ -96,6 +119,7 @@ export async function buildApp() {
   await app.register(volunteerCertRoutes, {prefix: '/api'});
   await app.register(facilityRoutes, {prefix: '/api'});
   await app.register(peerMatchRoutes, {prefix: '/api'});
+  await app.register(uploadRoutes, {prefix: '/api'});
 
   return app;
 }

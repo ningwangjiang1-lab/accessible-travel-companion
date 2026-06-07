@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useEffect} from 'react';
+import React, {useState, useCallback, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import Card from '../components/Card/Card';
 import Badge from '../components/Badge/Badge';
 import Divider from '../components/Divider/Divider';
 import Tag from '../components/Tag/Tag';
+import * as uploadService from '../services/uploadService';
 
 /**
  * FacilitySearchScreen — 无障碍设施查询
@@ -57,8 +58,10 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
   const [statusFormVisible, setStatusFormVisible] = useState(false);
   const [reportStatus, setReportStatus] = useState<string>('normal');
   const [reportNote, setReportNote] = useState('');
-  const [reportPhoto, setReportPhoto] = useState('');
+  const [reportPhotoFile, setReportPhotoFile] = useState<File | null>(null);
+  const [reportPhotoUrl, setReportPhotoUrl] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // ---- 加载类型 ----
   useEffect(() => {
@@ -392,14 +395,15 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
 
                 {!statusFormVisible ? (
                   <TouchableOpacity
-                    style={[styles.reportBtn, {backgroundColor: colors.primary, borderRadius: borderRadius.md}]}
+                    style={{backgroundColor: colors.primary, borderRadius: borderRadius.md, paddingVertical: 10, alignItems: 'center'}}
                     onPress={() => {
                       setReportStatus(selectedFacility?.current_status || 'normal');
                       setReportNote('');
-                      setReportPhoto('');
+                      setReportPhotoFile(null);
+                      setReportPhotoUrl('');
                       setStatusFormVisible(true);
                     }}>
-                    <Text style={{color: colors.textInverse, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any, textAlign: 'center'}}>
+                    <Text style={{color: colors.textInverse, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}}>
                       📝 更新状态
                     </Text>
                   </TouchableOpacity>
@@ -407,7 +411,7 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
                   <View>
                     {/* 状态选择 */}
                     <Text style={{color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: fontWeight.medium as any, marginBottom: 6}}>
-                      选择状态
+                      选择状态 <Text style={{color: colors.danger}}>*</Text>
                     </Text>
                     <View style={{flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.sm}}>
                       {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map(status => (
@@ -421,28 +425,73 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
                       ))}
                     </View>
 
-                    {/* 备注 */}
+                    {/* 现场照片（必填） */}
+                    <Text style={{color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: fontWeight.medium as any, marginBottom: 6}}>
+                      📷 现场照片 <Text style={{color: colors.danger}}>*</Text>
+                    </Text>
+                    {/* 隐藏的 file input */}
+                    {typeof window !== 'undefined' && (
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        style={{display: 'none'}}
+                        onChange={async (e: any) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setReportPhotoFile(file);
+                            // 上传到服务器
+                            try {
+                              const result = await uploadService.uploadImage(file);
+                              const fullUrl = `https://impartial-caring-production-3593.up.railway.app${result.url}`;
+                              setReportPhotoUrl(fullUrl);
+                            } catch {
+                              if (typeof window !== 'undefined') { window.alert('图片上传失败，请重试'); }
+                            }
+                          }
+                        }}
+                      />
+                    )}
                     <TouchableOpacity
                       style={{
-                        borderWidth: 1,
-                        borderColor: colors.border,
+                        borderWidth: 1.5,
+                        borderColor: reportPhotoUrl ? colors.success : colors.danger,
                         borderRadius: borderRadius.md,
-                        padding: 12,
+                        padding: 14,
                         marginBottom: spacing.sm,
+                        alignItems: 'center',
                       }}
-                      activeOpacity={0.5}
+                      activeOpacity={0.6}
                       onPress={() => {
-                        const note = typeof window !== 'undefined'
-                          ? window.prompt('请输入状态备注（选填）：', reportNote) || reportNote
-                          : reportNote;
-                        setReportNote(note);
+                        if (fileInputRef.current) {
+                          fileInputRef.current.click();
+                        }
                       }}>
-                      <Text style={{color: reportNote ? colors.textPrimary : colors.textTertiary, fontSize: fontSize.sm}}>
-                        {reportNote || '📝 添加备注说明（选填，点击编辑）'}
-                      </Text>
+                      {reportPhotoUrl ? (
+                        <View style={{alignItems: 'center'}}>
+                          <Text style={{color: colors.success, fontSize: fontSize.sm}}>✅ 照片已上传</Text>
+                          {typeof window !== 'undefined' && (
+                            <img
+                              src={reportPhotoUrl}
+                              alt="preview"
+                              style={{width: 120, height: 90, objectFit: 'cover', borderRadius: 8, marginTop: 8}}
+                            />
+                          )}
+                        </View>
+                      ) : (
+                        <View style={{alignItems: 'center'}}>
+                          <Text style={{color: colors.danger, fontSize: fontSize.sm}}>📷 点击上传现场照片（必填）</Text>
+                          <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 4}}>
+                            便于工作人员核实设施情况
+                          </Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
 
-                    {/* 图片 URL */}
+                    {/* 备注说明 */}
+                    <Text style={{color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: fontWeight.medium as any, marginBottom: 6}}>
+                      📝 备注说明（选填）
+                    </Text>
                     <TouchableOpacity
                       style={{
                         borderWidth: 1,
@@ -453,13 +502,13 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
                       }}
                       activeOpacity={0.5}
                       onPress={() => {
-                        const url = typeof window !== 'undefined'
-                          ? window.prompt('请输入现场照片 URL（选填，便于审核）：', reportPhoto) || reportPhoto
-                          : reportPhoto;
-                        setReportPhoto(url);
+                        const note = typeof window !== 'undefined'
+                          ? window.prompt('请输入备注说明：', reportNote) || reportNote
+                          : reportNote;
+                        setReportNote(note);
                       }}>
-                      <Text style={{color: reportPhoto ? colors.primary : colors.textTertiary, fontSize: fontSize.sm}}>
-                        {reportPhoto ? '📷 已添加照片链接' : '📷 上传现场照片（选填，点击输入 URL）'}
+                      <Text style={{color: reportNote ? colors.textPrimary : colors.textTertiary, fontSize: fontSize.sm}}>
+                        {reportNote || '点击添加备注说明'}
                       </Text>
                     </TouchableOpacity>
 
@@ -476,17 +525,22 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
                       <TouchableOpacity
                         style={{
                           flex: 1, paddingVertical: 10, alignItems: 'center',
-                          backgroundColor: reportSubmitting ? colors.border : colors.primary,
+                          backgroundColor: (!reportPhotoUrl || reportSubmitting) ? colors.border : colors.primary,
                           borderRadius: borderRadius.md,
                         }}
-                        disabled={reportSubmitting}
+                        disabled={!reportPhotoUrl || reportSubmitting}
                         onPress={async () => {
+                          if (!reportPhotoUrl) {
+                            if (typeof window !== 'undefined') { window.alert('请上传现场照片'); }
+                            return;
+                          }
                           setReportSubmitting(true);
                           try {
+                            const noteParts = [reportNote, reportPhotoUrl].filter(Boolean);
                             await facilityService.reportFacilityStatus(
                               selectedFacility!.id,
                               reportStatus,
-                              [reportNote, reportPhoto].filter(Boolean).join(' | ') || undefined,
+                              noteParts.join(' | ') || undefined,
                             );
                             if (typeof window !== 'undefined') { window.alert('状态已更新，感谢您的贡献！'); }
                             setStatusFormVisible(false);
