@@ -38,13 +38,23 @@ const DISABILITY_MAP: Record<string, {emoji: string; label: string}> = {
   cognitive: {emoji: '🧠', label: '认知障碍'},
 };
 
-/** 导航偏好 → 中文 */
-const NAV_MAP: Record<string, string> = {
-  avoid_overpass: '避开天桥',
-  prefer_ramp: '偏好坡道',
-  flat_only: '仅平坦路面',
-  barrier_free: '完全无障碍',
+/** 导航偏好 → emoji + 中文 */
+const NAV_MAP: Record<string, {emoji: string; label: string}> = {
+  barrier_free: {emoji: '✅', label: '完全无障碍'},
+  prefer_ramp: {emoji: '🔽', label: '偏好坡道'},
+  avoid_overpass: {emoji: '🌉', label: '避开天桥'},
+  flat_only: {emoji: '🟰', label: '仅平坦路'},
 };
+
+/** 将逗号分隔的导航偏好转为中文数组 */
+function parseNavPreferences(navPreference: string | null | undefined): string[] {
+  if (!navPreference) return [];
+  return navPreference
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(v => NAV_MAP[v] ? `${NAV_MAP[v].emoji} ${NAV_MAP[v].label}` : v);
+}
 
 interface MenuItem {
   icon: string;
@@ -242,7 +252,9 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
             <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginRight: spacing.sm}}>
               出行偏好：
             </Text>
-            <Badge text={NAV_MAP[profile.nav_preference] || profile.nav_preference} variant="success" />
+            {parseNavPreferences(profile.nav_preference).map((label, i) => (
+              <Badge key={i} text={label} variant="success" style={{marginRight: spacing.xs, marginBottom: 4}} />
+            ))}
             {profile.assistive_device && (
               <Badge text={`🦯 ${profile.assistive_device}`} variant="primary" style={{marginLeft: spacing.xs}} />
             )}
