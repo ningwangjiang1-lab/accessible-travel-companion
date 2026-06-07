@@ -15,8 +15,6 @@ export type DisabilityType = 'physical' | 'visual' | 'hearing' | 'cognitive' | '
 
 export type NavPreference = 'avoid_overpass' | 'prefer_ramp' | 'flat_only' | 'barrier_free';
 
-export type FontPreference = 'standard' | 'large' | 'extra_large';
-
 export type CognitionLevel = 'normal' | 'mild' | 'moderate';
 
 export type NotifyMethod = 'sms' | 'push' | 'both';
@@ -73,7 +71,6 @@ export interface DisabilityProfile {
   disability_type: DisabilityType;
   assistive_device: string | null;
   nav_preference: NavPreference;
-  font_preference: FontPreference;
   cognition_level: CognitionLevel;
   created_at: Date;
   updated_at: Date;

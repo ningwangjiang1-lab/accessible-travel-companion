@@ -103,7 +103,6 @@ const SettingsScreen: React.FC<{navigation: any}> = ({navigation}) => {
       title: '⚙️ 通用',
       items: [
         {icon: '🌐', label: '语言', type: 'info', value: '简体中文'},
-        {icon: '📝', label: '字号偏好', type: 'info', value: profile?.font_preference === 'large' ? '大号' : profile?.font_preference === 'extra_large' ? '特大' : '标准'},
         {icon: '🗑️', label: '清除缓存', type: 'navigate'},
         {icon: '📊', label: '数据用量', type: 'navigate'},
       ],

@@ -74,10 +74,6 @@ export async function userRoutes(app: FastifyInstance) {
             type: 'string',
             description: '导航偏好（逗号分隔多选），如 barrier_free,prefer_ramp',
           },
-          font_preference: {
-            type: 'string',
-            enum: ['standard', 'large', 'extra_large'],
-          },
           avatar: {type: 'string', description: '头像 URL'},
           gender: {
             type: 'string',

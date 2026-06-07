@@ -246,26 +246,6 @@ const ProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
             {profile.assistive_device && (
               <Badge text={`🦯 ${profile.assistive_device}`} variant="primary" style={{marginLeft: spacing.xs}} />
             )}
-            <Badge
-              text={`字号：${profile.font_preference === 'large' ? '大' : profile.font_preference === 'extra_large' ? '特大' : '标准'}`}
-              variant="warning"
-              style={{marginLeft: spacing.xs}}
-            />
-          </View>
-        </Card>
-      )}
-
-      {/* 非残障人士：仅显示字体偏好 */}
-      {profile && user?.user_type === 'non_disabled' && (
-        <Card variant="card-flat" style={{marginHorizontal: spacing.lg, marginTop: spacing.sm}}>
-          <View style={{flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center'}}>
-            <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginRight: spacing.sm}}>
-              设置：
-            </Text>
-            <Badge
-              text={`字号：${profile.font_preference === 'large' ? '大' : profile.font_preference === 'extra_large' ? '特大' : '标准'}`}
-              variant="warning"
-            />
           </View>
         </Card>
       )}

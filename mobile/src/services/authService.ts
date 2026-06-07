@@ -22,7 +22,6 @@ export interface DisabilityProfile {
   disability_type: 'physical' | 'visual' | 'hearing' | 'cognitive' | 'none';
   assistive_device: string | null;
   nav_preference: string;
-  font_preference: 'standard' | 'large' | 'extra_large';
 }
 
 export interface AuthResult {
@@ -39,7 +38,6 @@ export interface RegisterInput {
   disability_type?: string;
   assistive_device?: string;
   nav_preference?: string;
-  font_preference?: string;
   gender?: string;
   birth_year?: number;
   city?: string;

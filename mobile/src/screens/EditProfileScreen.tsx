@@ -24,8 +24,6 @@ import Card from '../components/Card/Card';
  * - 性别
  * - 出生年份
  * - 所在城市
- * - 字体偏好（3 选 1）
- *
  * 仅残障人士额外可见：
  * - 残障类型（4 选 1）
  * - 辅助设备（多选标签）
@@ -63,12 +61,6 @@ const NAV_TAGS = [
   {value: 'flat_only', icon: '🟰', label: '仅平坦路'},
 ];
 
-const FONT_OPTIONS: TypeOption[] = [
-  {value: 'standard', icon: '📝', label: '标准', description: '默认字号'},
-  {value: 'large', icon: '🔍', label: '大号', description: '放大 25%'},
-  {value: 'extra_large', icon: '🔎', label: '特大', description: '放大 50%'},
-];
-
 const EditProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const {colors, fontSize, fontWeight, spacing, borderRadius} = useTheme();
   const {user, profile, updateProfile} = useAuthStore();
@@ -88,7 +80,6 @@ const EditProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const [disabilityType, setDisabilityType] = useState<string>(profile?.disability_type || 'physical');
   const [assistiveDevices, setAssistiveDevices] = useState<string[]>(parseCommaSep(profile?.assistive_device));
   const [navPreferences, setNavPreferences] = useState<string[]>(parseCommaSep(profile?.nav_preference));
-  const [fontPreference, setFontPreference] = useState<string>(profile?.font_preference || 'standard');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   /** 切换多选标签 */
@@ -124,7 +115,6 @@ const EditProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
         disability_type: isDisabledUser ? disabilityType : undefined,
         assistive_device: isDisabledUser && assistiveDevices.length > 0 ? assistiveDevices.join(',') : undefined,
         nav_preference: isDisabledUser && navPreferences.length > 0 ? navPreferences.join(',') : undefined,
-        font_preference: fontPreference,
       });
       const successMsg = '个人资料已更新';
       if (typeof window !== 'undefined') { window.alert('✅ 保存成功\n\n' + successMsg); }
@@ -261,18 +251,6 @@ const EditProfileScreen: React.FC<{navigation: any}> = ({navigation}) => {
           </View>
         </Card>
       )}
-
-      {/* 字体偏好 */}
-      <Card variant="card" style={{marginHorizontal: spacing.lg, marginTop: spacing.md}}>
-        <Text style={[styles.sectionTitle, {color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}]}>
-          字体大小
-        </Text>
-        <TypeSelector
-          options={FONT_OPTIONS}
-          selectedValue={fontPreference}
-          onSelect={setFontPreference}
-        />
-      </Card>
 
       {/* 保存按钮 */}
       <View style={{marginHorizontal: spacing.lg, marginTop: spacing.lg}}>

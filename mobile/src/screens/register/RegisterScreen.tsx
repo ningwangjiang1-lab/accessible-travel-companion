@@ -23,7 +23,6 @@ export interface RegisterFormData {
   disability_type: string;
   assistive_device: string;
   nav_preference: string;
-  font_preference: string;
 }
 
 const RegisterScreen: React.FC<{navigation?: any; route?: any}> = ({navigation, route}) => {
@@ -38,7 +37,6 @@ const RegisterScreen: React.FC<{navigation?: any; route?: any}> = ({navigation, 
     disability_type: 'physical',
     assistive_device: '',
     nav_preference: 'barrier_free',
-    font_preference: 'standard',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -82,7 +80,6 @@ const RegisterScreen: React.FC<{navigation?: any; route?: any}> = ({navigation, 
           disability_type: isDisabledUser ? formData.disability_type : 'none',
           assistive_device: isDisabledUser ? formData.assistive_device : '',
           nav_preference: formData.nav_preference,
-          font_preference: formData.font_preference,
         });
       } else {
         await updateProfile({
@@ -90,7 +87,6 @@ const RegisterScreen: React.FC<{navigation?: any; route?: any}> = ({navigation, 
           disability_type: isDisabledUser ? formData.disability_type : 'none',
           assistive_device: isDisabledUser ? formData.assistive_device : '',
           nav_preference: formData.nav_preference,
-          font_preference: formData.font_preference,
         });
       }
       setStep(TOTAL_STEPS);
@@ -174,9 +170,7 @@ const RegisterScreen: React.FC<{navigation?: any; route?: any}> = ({navigation, 
         {step === 3 && (
           <StepPreferences
             navPreference={formData.nav_preference}
-            fontPreference={formData.font_preference}
             onNavChange={v => updateField('nav_preference', v)}
-            onFontChange={v => updateField('font_preference', v)}
           />
         )}
 

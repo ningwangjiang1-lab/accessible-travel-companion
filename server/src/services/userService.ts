@@ -39,7 +39,6 @@ export interface UpdateProfileInput {
   disability_type?: string;
   assistive_device?: string;
   nav_preference?: string;
-  font_preference?: string;
   avatar?: string;
   gender?: string;
   birth_year?: number;
@@ -96,7 +95,6 @@ export async function updateProfile(
     disability_type: 'disability_type',
     assistive_device: 'assistive_device',
     nav_preference: 'nav_preference',
-    font_preference: 'font_preference',
   };
 
   const profileUpdates: string[] = [];

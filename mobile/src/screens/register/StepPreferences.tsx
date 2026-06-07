@@ -2,11 +2,9 @@ import React from 'react';
 import {View, Text, StyleSheet} from 'react-native';
 import {useTheme} from '../../theme';
 import Tag from '../../components/Tag/Tag';
-import TypeSelector from '../../components/TypeSelector/TypeSelector';
-import type {TypeOption} from '../../components/TypeSelector/TypeSelector';
 
 /**
- * Step 3：导航偏好（多选）+ 字体偏好（单选）
+ * Step 3：导航偏好（多选）
  */
 
 const NAV_TAGS = [
@@ -16,24 +14,14 @@ const NAV_TAGS = [
   {value: 'flat_only', icon: '🟰', label: '仅平坦路'},
 ];
 
-const FONT_OPTIONS: TypeOption[] = [
-  {value: 'standard', icon: '🔤', label: '标准字号', description: '14-16px'},
-  {value: 'large', icon: '🔠', label: '大字号', description: '放大 1.2 倍'},
-  {value: 'extra_large', icon: '📢', label: '超大字号', description: '放大 1.5 倍'},
-];
-
 interface StepPreferencesProps {
   navPreference: string;
-  fontPreference: string;
   onNavChange: (value: string) => void;
-  onFontChange: (value: string) => void;
 }
 
 const StepPreferences: React.FC<StepPreferencesProps> = ({
   navPreference,
-  fontPreference,
   onNavChange,
-  onFontChange,
 }) => {
   const {colors, fontSize, fontWeight, spacing} = useTheme();
 
@@ -77,30 +65,6 @@ const StepPreferences: React.FC<StepPreferencesProps> = ({
           />
         ))}
       </View>
-
-      {/* 分隔 */}
-      <View style={{height: 32}} />
-
-      {/* 字体偏好（单选） */}
-      <Text
-        style={[
-          styles.heading,
-          {color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: fontWeight.bold as any, marginBottom: spacing.sm},
-        ]}>
-        字体大小
-      </Text>
-      <Text
-        style={[
-          styles.subheading,
-          {color: colors.textTertiary, fontSize: fontSize.sm, marginBottom: spacing.md},
-        ]}>
-        选择让您阅读舒适的字体大小
-      </Text>
-      <TypeSelector
-        options={FONT_OPTIONS}
-        selectedValue={fontPreference}
-        onSelect={onFontChange}
-      />
     </View>
   );
 };

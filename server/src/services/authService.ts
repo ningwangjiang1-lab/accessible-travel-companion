@@ -66,7 +66,6 @@ export interface RegisterInput {
   disability_type?: string;
   assistive_device?: string;
   nav_preference?: string;
-  font_preference?: string;
 }
 
 export interface AuthResult {
@@ -117,15 +116,14 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
     const user = userResult.rows[0];
 
     const profileResult = await client.query<DisabilityProfile>(
-      `INSERT INTO disability_profiles (user_id, disability_type, assistive_device, nav_preference, font_preference)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO disability_profiles (user_id, disability_type, assistive_device, nav_preference)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
       [
         user.id,
         input.disability_type || 'none',
         input.assistive_device || null,
         input.nav_preference || 'barrier_free',
-        input.font_preference || 'standard',
       ],
     );
     const profile = profileResult.rows[0];

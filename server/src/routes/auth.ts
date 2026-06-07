@@ -66,11 +66,6 @@ export async function authRoutes(app: FastifyInstance) {
             enum: ['avoid_overpass', 'prefer_ramp', 'flat_only', 'barrier_free'],
             description: '导航偏好',
           },
-          font_preference: {
-            type: 'string',
-            enum: ['standard', 'large', 'extra_large'],
-            description: '字体偏好',
-          },
         },
       },
     },
