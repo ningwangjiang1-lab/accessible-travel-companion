@@ -16,6 +16,7 @@ import {FACILITY_TYPE_MAP, STATUS_LABELS, STATUS_VARIANTS, RADIUS_OPTIONS} from 
 import Card from '../components/Card/Card';
 import Badge from '../components/Badge/Badge';
 import Divider from '../components/Divider/Divider';
+import Tag from '../components/Tag/Tag';
 
 /**
  * FacilitySearchScreen — 无障碍设施查询
@@ -189,7 +190,7 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
             onPress={() => navigation.goBack()}>
             <Text style={{color: colors.textInverse, fontSize: fontSize.xl}}>←</Text>
           </TouchableOpacity>
-          <View style={{marginLeft: 12}}>
+          <View style={{marginLeft: 12, flex: 1}}>
             <Text style={[styles.headerTitle, {color: colors.textInverse, fontSize: fontSize.xl, fontWeight: fontWeight.bold as any}]}>
               🏢 无障碍设施
             </Text>
@@ -197,6 +198,13 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
               共 {total} 处设施
             </Text>
           </View>
+          <TouchableOpacity
+            style={[styles.reportBtn, {backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: borderRadius.md}]}
+            onPress={() => navigation.navigate('ReportFacility')}>
+            <Text style={{color: colors.textInverse, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}}>
+              📝 上报
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -369,6 +377,33 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
                 <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: spacing.sm}}>
                   数据来源：{selectedFacility.source === 'official' ? '官方数据' : selectedFacility.source === 'amap' ? '高德地图' : '用户上报'}
                 </Text>
+              </Card>
+
+              {/* 状态上报按钮 */}
+              <Card variant="card" style={{marginTop: spacing.md}}>
+                <Text style={{color: colors.textPrimary, fontSize: fontSize.base, fontWeight: fontWeight.bold as any, marginBottom: spacing.sm}}>
+                  📊 上报设施状态
+                </Text>
+                <View style={{flexDirection: 'row', flexWrap: 'wrap'}}>
+                  {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map(status => (
+                    <Tag
+                      key={status}
+                      label={`${STATUS_LABELS[status]}`}
+                      selected={false}
+                      onPress={async () => {
+                        try {
+                          await facilityService.reportFacilityStatus(selectedFacility!.id, status);
+                          if (typeof window !== 'undefined') { window.alert('状态已更新'); }
+                          setDetailVisible(false);
+                        } catch (err: any) {
+                          const msg = err?.response?.data?.error || '操作失败';
+                          if (typeof window !== 'undefined') { window.alert(msg); }
+                        }
+                      }}
+                      style={{marginRight: 6, marginBottom: 6}}
+                    />
+                  ))}
+                </View>
               </Card>
 
               {selectedFacility.status_history.length > 0 && (

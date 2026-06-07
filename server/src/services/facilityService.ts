@@ -277,3 +277,90 @@ export async function getFacilityTypes() {
     ...config,
   }));
 }
+
+/**
+ * 用户上报新设施
+ */
+export interface CreateFacilityInput {
+  name: string;
+  facility_type: string;
+  lat: number;
+  lon: number;
+  address?: string;
+  description?: string;
+  photo_url?: string;
+}
+
+export async function createFacility(
+  input: CreateFacilityInput,
+): Promise<FacilitySummary> {
+  if (!input.name || !input.name.trim()) {
+    throw new AppError('设施名称不能为空', 400);
+  }
+  if (!input.facility_type) {
+    throw new AppError('请选择设施类型', 400);
+  }
+
+  const validTypes = Object.keys(FACILITY_TYPE_CONFIG);
+  if (!validTypes.includes(input.facility_type)) {
+    throw new AppError('无效的设施类型', 400);
+  }
+
+  const result = await query(
+    `INSERT INTO facilities (name, facility_type, lat, lon, address, description, source, verified)
+     VALUES ($1, $2, $3, $4, $5, $6, 'user_report', false)
+     RETURNING *`,
+    [
+      input.name.trim(),
+      input.facility_type,
+      input.lat || 39.9,
+      input.lon || 116.4,
+      input.address || null,
+      input.description || null,
+    ],
+  );
+
+  const row = result.rows[0];
+  return {
+    id: row.id,
+    name: row.name,
+    facility_type: row.facility_type,
+    lat: row.lat,
+    lon: row.lon,
+    address: row.address,
+    floor: row.floor,
+    door_width_cm: row.door_width_cm,
+    has_handrail: row.has_handrail || false,
+    description: row.description,
+    source: row.source,
+    verified: row.verified || false,
+    current_status: null,
+  };
+}
+
+/**
+ * 用户上报设施状态变更
+ */
+export async function reportFacilityStatus(
+  facilityId: string,
+  userId: string,
+  status: string,
+  note?: string,
+): Promise<void> {
+  // 检查设施是否存在
+  const facility = await query('SELECT id FROM facilities WHERE id = $1', [facilityId]);
+  if (facility.rows.length === 0) {
+    throw new AppError('设施不存在', 404);
+  }
+
+  const validStatuses = ['normal', 'maintenance', 'out_of_service', 'crowded'];
+  if (!validStatuses.includes(status)) {
+    throw new AppError('无效的状态值', 400);
+  }
+
+  await query(
+    `INSERT INTO facility_statuses (facility_id, status, reported_by, note)
+     VALUES ($1, $2, $3, $4)`,
+    [facilityId, status, userId, note || null],
+  );
+}

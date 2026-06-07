@@ -328,6 +328,29 @@ const CompanionScreen: React.FC<{navigation: any}> = ({navigation}) => {
             />
           </View>
 
+          {/* 同行者匹配入口 — 仅残障用户 */}
+          {profile && profile.disability_type !== 'none' && (
+            <View style={{paddingHorizontal: 20, marginTop: 12}}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('PeerMatching')}
+                style={[styles.proBanner, {backgroundColor: '#F0F7FF', borderRadius: 12, borderColor: colors.primary + '30'}]}>
+                <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                  <Text style={{fontSize: 28, marginRight: 12}}>🤝</Text>
+                  <View style={{flex: 1}}>
+                    <Text style={{color: colors.primary, fontSize: 15, fontWeight: '600' as any}}>
+                      同行者匹配
+                    </Text>
+                    <Text style={{color: colors.primary, fontSize: 12, opacity: 0.75, marginTop: 2}}>
+                      找到路线相近、优势互补的同行伙伴
+                    </Text>
+                  </View>
+                  <Text style={{color: colors.primary, fontSize: 20}}>›</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={{paddingHorizontal: 20, marginTop: 12}}>
             <TouchableOpacity
               activeOpacity={0.7}

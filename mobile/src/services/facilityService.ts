@@ -110,3 +110,30 @@ export async function getFacilityTypes(): Promise<FacilityTypeInfo[]> {
   const response = await api.get('/facilities/types');
   return response.data.types;
 }
+
+// ============ 设施上报 ============
+
+export interface CreateFacilityInput {
+  name: string;
+  facility_type: FacilityType;
+  lat: number;
+  lon: number;
+  address?: string;
+  description?: string;
+  photo_url?: string;
+}
+
+/** 上报新设施 */
+export async function createFacility(input: CreateFacilityInput): Promise<FacilitySummary> {
+  const response = await api.post('/facilities', input);
+  return response.data as FacilitySummary;
+}
+
+/** 上报设施状态变更 */
+export async function reportFacilityStatus(
+  facilityId: string,
+  status: string,
+  note?: string,
+): Promise<void> {
+  await api.post(`/facilities/${facilityId}/status`, {status, note});
+}

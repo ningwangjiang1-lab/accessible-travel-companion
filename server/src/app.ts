@@ -17,6 +17,7 @@ import {professionalRoutes} from './routes/professionals';
 import {geoFenceRoutes} from './routes/geoFences';
 import {volunteerCertRoutes} from './routes/volunteerCerts';
 import {facilityRoutes} from './routes/facilities';
+import {peerMatchRoutes} from './routes/peerMatch';
 
 /**
  * 创建并配置 Fastify 应用实例
@@ -94,6 +95,7 @@ export async function buildApp() {
   await app.register(geoFenceRoutes, {prefix: '/api'});
   await app.register(volunteerCertRoutes, {prefix: '/api'});
   await app.register(facilityRoutes, {prefix: '/api'});
+  await app.register(peerMatchRoutes, {prefix: '/api'});
 
   return app;
 }

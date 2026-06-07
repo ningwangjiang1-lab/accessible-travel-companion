@@ -117,3 +117,90 @@ export async function acceptTrip(tripId: string): Promise<any> {
 export async function cancelTrip(tripId: string): Promise<void> {
   await api.post(`/trips/${tripId}/cancel`);
 }
+
+// ============ 同行者匹配 ============
+
+export interface PeerCandidate {
+  trip_id: string;
+  user_id: string;
+  user_name: string;
+  disability_type: string;
+  start_address: string;
+  end_address: string;
+  start_time: string | null;
+  route_overlap_pct: number;
+  complementarity_score: number;
+  complementarity_desc: string | null;
+  total_score: number;
+}
+
+export interface PeerMatch {
+  id: string;
+  trip_a_id: string;
+  trip_b_id: string;
+  user_a_id: string;
+  user_b_id: string;
+  peer_name: string;
+  peer_disability_type: string;
+  peer_start_address: string;
+  peer_end_address: string;
+  route_overlap_pct: number | null;
+  complementarity_score: number | null;
+  status: string;
+  created_at: string;
+}
+
+export interface ActivePeerMatch {
+  id: string;
+  my_trip_id: string;
+  peer_trip_id: string;
+  peer_user_id: string;
+  peer_name: string;
+  peer_disability_type: string;
+  route_overlap_pct: number | null;
+  complementarity_score: number | null;
+  complementarity_desc: string | null;
+  peer_start_address: string;
+  peer_end_address: string;
+  peer_lat: number;
+  peer_lon: number;
+  my_start_lat: number;
+  my_start_lon: number;
+  my_end_lat: number;
+  my_end_lon: number;
+  status: string;
+}
+
+/** 开启同行者匹配 */
+export async function enablePeerMatching(tripId: string): Promise<void> {
+  await api.post(`/trips/${tripId}/peer-match`);
+}
+
+/** 获取同行候选列表 */
+export async function getPeerCandidates(): Promise<PeerCandidate[]> {
+  const response = await api.get('/trips/peer-candidates');
+  return response.data.candidates as PeerCandidate[];
+}
+
+/** 创建同行邀请 */
+export async function createPeerMatch(candidateTripId: string): Promise<PeerMatch> {
+  const response = await api.post('/peer-matches', {candidate_trip_id: candidateTripId});
+  return response.data as PeerMatch;
+}
+
+/** 接受同行匹配 */
+export async function acceptPeerMatch(matchId: string): Promise<PeerMatch> {
+  const response = await api.post(`/peer-matches/${matchId}/accept`);
+  return response.data as PeerMatch;
+}
+
+/** 拒绝同行匹配 */
+export async function rejectPeerMatch(matchId: string): Promise<void> {
+  await api.post(`/peer-matches/${matchId}/reject`);
+}
+
+/** 获取活跃同行关系 */
+export async function getActivePeerMatch(): Promise<ActivePeerMatch | null> {
+  const response = await api.get('/peer-matches/active');
+  return response.data.active as ActivePeerMatch | null;
+}

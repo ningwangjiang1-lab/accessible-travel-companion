@@ -94,4 +94,76 @@ export async function facilityRoutes(app: FastifyInstance) {
       }
     },
   });
+
+  // ---- 上报新设施 ----
+  app.post('/facilities', {
+    schema: {
+      description: '用户上报新的无障碍设施',
+      tags: ['Facilities'],
+      security: [{bearerAuth: []}],
+      body: {
+        type: 'object',
+        required: ['name', 'facility_type', 'lat', 'lon'],
+        properties: {
+          name: {type: 'string', description: '设施名称'},
+          facility_type: {
+            type: 'string',
+            enum: ['accessible_toilet', 'parking', 'elevator', 'ramp', 'low_counter', 'braille_sign'],
+            description: '设施类型',
+          },
+          lat: {type: 'number', description: '纬度'},
+          lon: {type: 'number', description: '经度'},
+          address: {type: 'string', description: '地址'},
+          description: {type: 'string', description: '描述'},
+          photo_url: {type: 'string', description: '照片 URL'},
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      try {
+        const facility = await facilityService.createFacility(
+          request.body as facilityService.CreateFacilityInput,
+        );
+        return reply.status(201).send(facility);
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send({error: err.message});
+      }
+    },
+  });
+
+  // ---- 上报设施状态 ----
+  app.post('/facilities/:id/status', {
+    schema: {
+      description: '用户上报设施状态变更',
+      tags: ['Facilities'],
+      security: [{bearerAuth: []}],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: {id: {type: 'string'}},
+      },
+      body: {
+        type: 'object',
+        required: ['status'],
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['normal', 'maintenance', 'out_of_service', 'crowded'],
+            description: '设施状态',
+          },
+          note: {type: 'string', description: '备注说明'},
+        },
+      },
+    },
+    handler: async (request, reply) => {
+      try {
+        const {id} = request.params as {id: string};
+        const {status, note} = request.body as {status: string; note?: string};
+        await facilityService.reportFacilityStatus(id, request.user!.sub, status, note);
+        return reply.send({success: true});
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send({error: err.message});
+      }
+    },
+  });
 }

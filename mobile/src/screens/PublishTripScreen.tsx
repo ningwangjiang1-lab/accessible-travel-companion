@@ -80,6 +80,7 @@ const PublishTripScreen: React.FC<{navigation: any; route: any}> = ({navigation}
   const [isNow, setIsNow] = useState(true);
   const [startTime, setStartTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [peerMatching, setPeerMatching] = useState(false);
 
   // ---- 表单验证 ----
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -138,6 +139,15 @@ const PublishTripScreen: React.FC<{navigation: any; route: any}> = ({navigation}
 
       // 发布成功后跳转到匹配页面（类似滴滴等待接单界面）
       navigation.replace('Match', {tripId: result.id});
+
+      // 如果开启了同行者匹配
+      if (peerMatching) {
+        try {
+          await tripService.enablePeerMatching(result.id);
+        } catch {
+          // 同行匹配开启失败不阻断主流程
+        }
+      }
     } catch (err: any) {
       const errMsg = err?.response?.data?.error || err?.message || '请稍后重试';
       if (typeof window !== 'undefined') {
@@ -346,6 +356,58 @@ const PublishTripScreen: React.FC<{navigation: any; route: any}> = ({navigation}
               error={errors.startTime}
               accessibilityLabel="预约出发时间"
             />
+          )}
+
+          {/* 同行者匹配开关（仅残障用户可见） */}
+          {profile && profile.disability_type !== 'none' && (
+            <View style={{marginTop: spacing.md}}>
+              <Text style={[styles.formLabel, {color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}]}>
+                同行者模式
+              </Text>
+              <View style={styles.timeToggle}>
+                <TouchableOpacity
+                  style={[
+                    styles.timeToggleBtn,
+                    {
+                      backgroundColor: !peerMatching ? colors.primary : colors.bg,
+                      borderColor: !peerMatching ? colors.primary : colors.border,
+                      borderRadius: borderRadius.full,
+                    },
+                  ]}
+                  onPress={() => setPeerMatching(false)}>
+                  <Text style={{
+                    color: !peerMatching ? colors.textInverse : colors.textSecondary,
+                    fontSize: fontSize.sm,
+                    fontWeight: fontWeight.medium as any,
+                  }}>
+                    🧑 独自出行
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.timeToggleBtn,
+                    {
+                      backgroundColor: peerMatching ? colors.primary : colors.bg,
+                      borderColor: peerMatching ? colors.primary : colors.border,
+                      borderRadius: borderRadius.full,
+                    },
+                  ]}
+                  onPress={() => setPeerMatching(true)}>
+                  <Text style={{
+                    color: peerMatching ? colors.textInverse : colors.textSecondary,
+                    fontSize: fontSize.sm,
+                    fontWeight: fontWeight.medium as any,
+                  }}>
+                    🤝 寻找同行者
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {peerMatching && (
+                <Text style={[styles.footnote, {color: colors.textTertiary, fontSize: fontSize.xs, textAlign: 'left', marginTop: 8}]}>
+                  系统将为您匹配路线相近、残障类型互补的同行伙伴，两人优势互补共同出行
+                </Text>
+              )}
+            </View>
           )}
         </Card>
 
