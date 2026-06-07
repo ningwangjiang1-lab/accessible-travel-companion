@@ -235,9 +235,9 @@ export async function searchFacilities(
 }
 
 /**
- * 获取设施详情
+ * 获取设施详情（含状态历史）
  */
-export async function getFacilityById(facilityId: string): Promise<FacilitySummary | null> {
+export async function getFacilityById(facilityId: string): Promise<any> {
   const result = await query(
     `SELECT f.*, fs.status as current_status
      FROM facilities f
@@ -251,6 +251,19 @@ export async function getFacilityById(facilityId: string): Promise<FacilitySumma
   }
 
   const row = result.rows[0];
+
+  // 获取状态历史
+  const historyResult = await query(
+    `SELECT fst.status, fst.note, fst.reported_by, fst.reported_at, fst.valid_until,
+            u.name as reporter_name
+     FROM facility_statuses fst
+     LEFT JOIN users u ON u.id = fst.reported_by
+     WHERE fst.facility_id = $1
+     ORDER BY fst.reported_at DESC
+     LIMIT 20`,
+    [facilityId],
+  );
+
   return {
     id: row.id,
     name: row.name,
@@ -265,6 +278,13 @@ export async function getFacilityById(facilityId: string): Promise<FacilitySumma
     source: row.source || 'amap',
     verified: row.verified || false,
     current_status: row.current_status || null,
+    status_history: historyResult.rows.map((h: any) => ({
+      status: h.status,
+      note: h.note,
+      reported_by: h.reporter_name || null,
+      reported_at: h.reported_at instanceof Date ? h.reported_at.toISOString() : h.reported_at,
+      valid_until: h.valid_until instanceof Date ? h.valid_until.toISOString() : h.valid_until,
+    })),
   };
 }
 

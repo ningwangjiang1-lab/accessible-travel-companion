@@ -94,7 +94,7 @@ const FacilitySearchScreen: React.FC<{navigation: any; route?: any}> = ({navigat
     setDetailVisible(true);
     try {
       const detail = await facilityService.getFacilityById(facility.id);
-      setSelectedFacility(detail);
+      setSelectedFacility({...detail, status_history: (detail as any).status_history || []});
     } catch {
       setSelectedFacility(null);
     } finally {
