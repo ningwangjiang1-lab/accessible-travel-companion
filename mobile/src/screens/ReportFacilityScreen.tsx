@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import Card from '../components/Card/Card';
 
 /**
  * ReportFacilityScreen — 上报无障碍设施
+ * 支持 GPS 自动定位 + 手动修正
  */
 
 const FACILITY_TYPE_OPTIONS: TypeOption[] = Object.entries(FACILITY_TYPE_MAP).map(
@@ -35,10 +36,63 @@ const ReportFacilityScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const [name, setName] = useState('');
   const [facilityType, setFacilityType] = useState<FacilityType>('accessible_toilet');
   const [address, setAddress] = useState('');
-  const [latStr, setLatStr] = useState('39.9');
-  const [lonStr, setLonStr] = useState('116.4');
+  const [latStr, setLatStr] = useState('');
+  const [lonStr, setLonStr] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // GPS 定位状态
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationDetected, setLocationDetected] = useState(false);
+  const [locationError, setLocationError] = useState('');
+
+  /** GPS 自动定位 */
+  const handleGetLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocationError('当前浏览器不支持 GPS 定位，请手动输入经纬度');
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationError('');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        setLatStr(lat.toFixed(5));
+        setLonStr(lon.toFixed(5));
+        setLocationDetected(true);
+        setIsLocating(false);
+      },
+      (err) => {
+        setIsLocating(false);
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            setLocationError('定位权限被拒绝，请在浏览器设置中允许定位');
+            break;
+          case err.POSITION_UNAVAILABLE:
+            setLocationError('无法获取位置信息，请检查网络连接');
+            break;
+          case err.TIMEOUT:
+            setLocationError('定位超时，请重试');
+            break;
+          default:
+            setLocationError('定位失败，请手动输入经纬度');
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 60000,
+      },
+    );
+  };
+
+  // 首次进入自动定位
+  useEffect(() => {
+    handleGetLocation();
+  }, []);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -50,7 +104,7 @@ const ReportFacilityScreen: React.FC<{navigation: any}> = ({navigation}) => {
     const lat = parseFloat(latStr);
     const lon = parseFloat(lonStr);
     if (isNaN(lat) || isNaN(lon)) {
-      const msg = '请输入有效的经纬度坐标';
+      const msg = '请获取 GPS 定位或手动输入经纬度';
       if (typeof window !== 'undefined') { window.alert(msg); }
       Alert.alert('提示', msg);
       return;
@@ -106,6 +160,75 @@ const ReportFacilityScreen: React.FC<{navigation: any}> = ({navigation}) => {
         showsVerticalScrollIndicator={false}>
 
         <Card variant="card" style={{marginHorizontal: spacing.lg, marginTop: spacing.lg}}>
+          {/* GPS 自动定位 */}
+          <Text style={[styles.formLabel, {color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.semibold as any}]}>
+            📍 位置 <Text style={{color: colors.danger}}>*</Text>
+          </Text>
+
+          <TouchableOpacity
+            style={{
+              backgroundColor: locationDetected ? '#E8F5E9' : colors.primaryLight,
+              borderRadius: borderRadius.md,
+              padding: 14,
+              marginBottom: spacing.md,
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: locationDetected ? '#4CAF50' : colors.primary,
+            }}
+            onPress={handleGetLocation}
+            disabled={isLocating}
+            activeOpacity={0.7}>
+            {isLocating ? (
+              <Text style={{color: colors.primary, fontSize: fontSize.base, fontWeight: fontWeight.semibold as any}}>
+                📡 正在获取位置...
+              </Text>
+            ) : locationDetected ? (
+              <View style={{alignItems: 'center'}}>
+                <Text style={{color: '#4CAF50', fontSize: fontSize.base, fontWeight: fontWeight.bold as any}}>
+                  ✅ 已定位
+                </Text>
+                <Text style={{color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 4}}>
+                  纬度 {latStr} 经度 {lonStr}
+                </Text>
+                <Text style={{color: colors.textTertiary, fontSize: fontSize.xs, marginTop: 2}}>
+                  点击重新定位
+                </Text>
+              </View>
+            ) : (
+              <Text style={{color: colors.primary, fontSize: fontSize.base, fontWeight: fontWeight.semibold as any}}>
+                📍 点击获取当前位置
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {locationError ? (
+            <Text style={{color: colors.warning || '#FF9800', fontSize: fontSize.xs, marginBottom: spacing.md, textAlign: 'center'}}>
+              {locationError}
+            </Text>
+          ) : null}
+
+          {/* 手动修正经纬度（可折叠） */}
+          <View style={styles.coordRow}>
+            <View style={{flex: 1, marginRight: 8}}>
+              <FormInput
+                label="纬度"
+                value={latStr}
+                onChangeText={setLatStr}
+                placeholder="39.9"
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={{flex: 1, marginLeft: 8}}>
+              <FormInput
+                label="经度"
+                value={lonStr}
+                onChangeText={setLonStr}
+                placeholder="116.4"
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+
           {/* 设施名称 */}
           <FormInput
             label="设施名称"
@@ -137,28 +260,6 @@ const ReportFacilityScreen: React.FC<{navigation: any}> = ({navigation}) => {
             placeholder="如：北京市朝阳区XX路XX号"
             maxLength={200}
           />
-
-          {/* 经纬度 */}
-          <View style={styles.coordRow}>
-            <View style={{flex: 1, marginRight: 8}}>
-              <FormInput
-                label="纬度 (lat)"
-                value={latStr}
-                onChangeText={setLatStr}
-                placeholder="39.9"
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={{flex: 1, marginLeft: 8}}>
-              <FormInput
-                label="经度 (lon)"
-                value={lonStr}
-                onChangeText={setLonStr}
-                placeholder="116.4"
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
 
           {/* 描述 */}
           <FormInput
@@ -193,7 +294,6 @@ const ReportFacilityScreen: React.FC<{navigation: any}> = ({navigation}) => {
 const styles = StyleSheet.create({
   flex: {flex: 1},
   scrollContent: {paddingBottom: 24},
-  // 页头
   header: {
     paddingTop: 48,
     paddingBottom: 20,
@@ -218,7 +318,7 @@ const styles = StyleSheet.create({
   headerTitle: {lineHeight: 28},
   headerSub: {textAlign: 'center', lineHeight: 20},
   formLabel: {marginBottom: 8, lineHeight: 20},
-  coordRow: {flexDirection: 'row'},
+  coordRow: {flexDirection: 'row', marginTop: 4},
   footnote: {textAlign: 'center', marginTop: 12, lineHeight: 18},
 });
 
